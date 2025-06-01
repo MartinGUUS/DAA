@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 #define MAX_PRODUCTOS 100
 #define MAX_LOCALIDADES 20
@@ -24,6 +25,15 @@ typedef struct {
     Producto *producto;
     int cantidad;
 } Pedido;
+
+typedef struct {
+    Producto *producto;
+    int cantidad;
+    float valor_total;
+    float peso_total;
+    float volumen_total;
+} ProductoSeleccionado;
+
 
 typedef struct {
     int id;
@@ -135,8 +145,112 @@ void precargarDatos() {
     }
 }
 
+// SELECCION OPTIMA DE PRODUCTOS Y CAMION
+
+void asignacion_optima_productos_camiones() {
+    for (int i = 0; i < MAX_CAMIONES; i++) {
+        Camion *camion = &camionesArreglo[i];
+        if (camion->estado != DISPONIBLE) continue;
+
+        for (int j = 0; j < MAX_LOCALIDADES; j++) {
+            Localidad *loc = &localidadesArreglo[j];
+            if (loc->total_pedidos == 0) continue;
+
+            int n = loc->total_pedidos;
+            int W = (int)camion->capacidadCarga;
+            int V = (int)camion->capacidadVolumen;
+
+            float ***dp = malloc((n + 1) * sizeof(float**));
+            for (int x = 0; x <= n; x++) {
+                dp[x] = malloc((W + 1) * sizeof(float*));
+                for (int w = 0; w <= W; w++) {
+                    dp[x][w] = calloc((V + 1), sizeof(float));
+                }
+            }
+
+            // Llenar DP
+            for (int x = 1; x <= n; x++) {
+                int cantidad = loc->pedidos[x - 1].cantidad;
+                float peso = loc->pedidos[x - 1].producto->peso * cantidad;
+                float volumen = loc->pedidos[x - 1].producto->volumen * cantidad;
+                float valor = loc->pedidos[x - 1].producto->precio * cantidad;
+
+                int pw = (int)peso;
+                int pv = (int)volumen;
+
+                for (int w = 0; w <= W; w++) {
+                    for (int v = 0; v <= V; v++) {
+                        if (pw <= w && pv <= v) {
+                            float incluir = dp[x - 1][w - pw][v - pv] + valor;
+                            float excluir = dp[x - 1][w][v];
+                            dp[x][w][v] = fmax(incluir, excluir);
+                        } else {
+                            dp[x][w][v] = dp[x - 1][w][v];
+                        }
+                    }
+                }
+            }
+
+            // Reconstrucción
+            ProductoSeleccionado seleccionados[MAX_PRODUCTOS];
+            int totalSeleccionados = 0;
+            int w = W, v = V;
+
+            for (int x = n; x > 0; x--) {
+                int cantidad = loc->pedidos[x - 1].cantidad;
+                float peso = loc->pedidos[x - 1].producto->peso * cantidad;
+                float volumen = loc->pedidos[x - 1].producto->volumen * cantidad;
+                float valor = loc->pedidos[x - 1].producto->precio * cantidad;
+
+                int pw = (int)peso;
+                int pv = (int)volumen;
+
+                if (pw <= w && pv <= v &&
+                    dp[x][w][v] != dp[x - 1][w][v]) {
+                    seleccionados[totalSeleccionados].producto = loc->pedidos[x - 1].producto;
+                    seleccionados[totalSeleccionados].cantidad = cantidad;
+                    seleccionados[totalSeleccionados].valor_total = valor;
+                    seleccionados[totalSeleccionados].peso_total = peso;
+                    seleccionados[totalSeleccionados].volumen_total = volumen;
+                    totalSeleccionados++;
+
+                    w -= pw;
+                    v -= pv;
+                }
+            }
+
+            // Imprimir resultado
+            printf("\nCamion #%d -> Localidad \"%s\":\n", camion->id, loc->nombre);
+            if (totalSeleccionados == 0) {
+                printf("  No se asignaron productos.\n");
+            } else {
+                for (int k = 0; k < totalSeleccionados; k++) {
+                    printf("  - %s | Cantidad: %d | Valor: %.2f | Peso: %.2f | Volumen: %.2f\n",
+                        seleccionados[k].producto->nombre,
+                        seleccionados[k].cantidad,
+                        seleccionados[k].valor_total,
+                        seleccionados[k].peso_total,
+                        seleccionados[k].volumen_total
+                    );
+                }
+            }
+
+            // Liberar memoria
+            for (int x = 0; x <= n; x++) {
+                for (int y = 0; y <= W; y++) {
+                    free(dp[x][y]);
+                }
+                free(dp[x]);
+            }
+            free(dp);
+        }
+    }
+}
+
+
 int main() {
     precargarDatos();
+    asignacion_optima_productos_camiones();
 
 
     
