@@ -59,6 +59,8 @@ typedef struct {
     EstadoCamion estado;
     int ruta[MAX_LOCALIDADES]; // ids de localidades
     int total_ruta;
+    int origen_id;
+    int destino_id;
 } Camion;
 
 Camion camionesArreglo[MAX_CAMIONES];
@@ -117,6 +119,11 @@ void precargarDatos() {
         camionesArreglo[i].capacidadVolumen = 10 + (rand() % 50);      // m3
         camionesArreglo[i].estado = DISPONIBLE;
         camionesArreglo[i].total_ruta = 0;
+
+        do {
+        camionesArreglo[i].origen_id = rand() % MAX_LOCALIDADES + 1;
+        camionesArreglo[i].destino_id = rand() % MAX_LOCALIDADES + 1;
+           } while (camionesArreglo[i].origen_id == camionesArreglo[i].destino_id);
     }
 
     // PRECARGA DE CLIENTES
@@ -133,15 +140,43 @@ void precargarDatos() {
     }
 
     // PRECARGA DE CONEXIONES ENTRE LOCALIDADES
-    for (int i = 0; i < MAX_CONEXIONES; i++) {
-        conexionesArreglo[i].origen_id = rand() % MAX_LOCALIDADES + 1;
-        conexionesArreglo[i].destino_id = rand() % MAX_LOCALIDADES + 1;
-        while (conexionesArreglo[i].destino_id == conexionesArreglo[i].origen_id) {
-            conexionesArreglo[i].destino_id = rand() % MAX_LOCALIDADES + 1;
+    int total_conexiones = 0;
+
+    // PASO 1: Conexiones mínimas para asegurar conectividad
+    for (int i = 0; i < MAX_LOCALIDADES - 1; i++) {
+    conexionesArreglo[total_conexiones].origen_id = i + 1;
+    conexionesArreglo[total_conexiones].destino_id = i + 2;
+    conexionesArreglo[total_conexiones].distancia_km = 5 + (rand() % 100);
+    conexionesArreglo[total_conexiones].tiempo_min = 10 + (rand() % 120);
+    conexionesArreglo[total_conexiones].penalizacion_trafico = (rand() % 3) * 5;
+    total_conexiones++;
+    }
+
+    // PASO 2: Conexiones aleatorias adicionales
+    while (total_conexiones < MAX_CONEXIONES) {
+    int origen = rand() % MAX_LOCALIDADES + 1;
+    int destino = rand() % MAX_LOCALIDADES + 1;
+
+    if (origen == destino) continue;
+
+    // Validar que no exista ya esa conexión
+    bool existe = false;
+    for (int j = 0; j < total_conexiones; j++) {
+        if ((conexionesArreglo[j].origen_id == origen && conexionesArreglo[j].destino_id == destino) ||
+            (conexionesArreglo[j].origen_id == destino && conexionesArreglo[j].destino_id == origen)) {
+            existe = true;
+            break;
         }
-        conexionesArreglo[i].distancia_km = 5 + (rand() % 100);
-        conexionesArreglo[i].tiempo_min = 10 + (rand() % 120);
-        conexionesArreglo[i].penalizacion_trafico = (rand() % 3) * 5;  
+    }
+
+    if (existe) continue;
+
+    conexionesArreglo[total_conexiones].origen_id = origen;
+    conexionesArreglo[total_conexiones].destino_id = destino;
+    conexionesArreglo[total_conexiones].distancia_km = 5 + (rand() % 100);
+    conexionesArreglo[total_conexiones].tiempo_min = 10 + (rand() % 120);
+    conexionesArreglo[total_conexiones].penalizacion_trafico = (rand() % 3) * 5;
+    total_conexiones++;
     }
 }
 
@@ -247,12 +282,164 @@ void asignacion_optima_productos_camiones() {
     }
 }
 
+// FUNCIONALIDAD 2
+#define INF 1e9
+
+float matriz_tiempo[MAX_LOCALIDADES][MAX_LOCALIDADES];
+float matriz_distancia[MAX_LOCALIDADES][MAX_LOCALIDADES];
+
+void inicializar_matrices_rutas() {
+    for (int i = 0; i < MAX_LOCALIDADES; i++) {
+        for (int j = 0; j < MAX_LOCALIDADES; j++) {
+            matriz_tiempo[i][j] = (i == j) ? 0 : INF;
+            matriz_distancia[i][j] = (i == j) ? 0 : INF;
+        }
+    }
+
+    for (int i = 0; i < MAX_CONEXIONES; i++) {
+        int u = conexionesArreglo[i].origen_id - 1;
+        int v = conexionesArreglo[i].destino_id - 1;
+        float tiempo = conexionesArreglo[i].tiempo_min + conexionesArreglo[i].penalizacion_trafico;
+        float distancia = conexionesArreglo[i].distancia_km;
+
+        if (tiempo < matriz_tiempo[u][v]) matriz_tiempo[u][v] = tiempo;
+        if (distancia < matriz_distancia[u][v]) matriz_distancia[u][v] = distancia;
+    }
+}
+
+void dijkstra_tiempo(int origen, float resultado[MAX_LOCALIDADES]) {
+    bool visitado[MAX_LOCALIDADES] = {false};
+
+    for (int i = 0; i < MAX_LOCALIDADES; i++) resultado[i] = INF;
+    resultado[origen] = 0;
+
+    for (int i = 0; i < MAX_LOCALIDADES - 1; i++) {
+        int u = -1;
+        float min_dist = INF;
+        for (int j = 0; j < MAX_LOCALIDADES; j++) {
+            if (!visitado[j] && resultado[j] < min_dist) {
+                u = j;
+                min_dist = resultado[j];
+            }
+        }
+
+        if (u == -1) break;
+        visitado[u] = true;
+
+        for (int v = 0; v < MAX_LOCALIDADES; v++) {
+            if (!visitado[v] && matriz_tiempo[u][v] < INF &&
+                resultado[u] + matriz_tiempo[u][v] < resultado[v]) {
+                resultado[v] = resultado[u] + matriz_tiempo[u][v];
+            }
+        }
+    }
+}
+
+void floyd_distancia(float resultado[MAX_LOCALIDADES][MAX_LOCALIDADES]) {
+    for (int i = 0; i < MAX_LOCALIDADES; i++)
+        for (int j = 0; j < MAX_LOCALIDADES; j++)
+            resultado[i][j] = matriz_distancia[i][j];
+
+    for (int k = 0; k < MAX_LOCALIDADES; k++)
+        for (int i = 0; i < MAX_LOCALIDADES; i++)
+            for (int j = 0; j < MAX_LOCALIDADES; j++)
+                if (resultado[i][k] + resultado[k][j] < resultado[i][j])
+                    resultado[i][j] = resultado[i][k] + resultado[k][j];
+}
+
+void optimizar_y_asignar_rutas(int modo) {
+    inicializar_matrices_rutas();
+
+    printf("\n==================================================\n");
+    if (modo == 1) {
+        printf("   RUTAS OPTIMIZADAS POR TIEMPO \n");
+        printf("==================================================\n");
+        printf("| Camion | Origen        -> Destino       | Tiempo Estimado |\n");
+        printf("--------------------------------------------------------------\n");
+
+        for (int i = 0; i < MAX_CAMIONES; i++) {
+            if (camionesArreglo[i].estado != DISPONIBLE) continue;
+
+            int origen = camionesArreglo[i].origen_id - 1;
+            int destino = camionesArreglo[i].destino_id - 1;
+
+            float distancias[MAX_LOCALIDADES];
+            dijkstra_tiempo(origen, distancias);
+
+            float tiempo_total = distancias[destino];
+            camionesArreglo[i].ruta[0] = camionesArreglo[i].destino_id;
+            camionesArreglo[i].total_ruta = 1;
+
+            printf("|   #%2d   | %-13s -> %-13s |   %6.1f min     |\n",
+                   camionesArreglo[i].id,
+                   localidadesArreglo[origen].nombre,
+                   localidadesArreglo[destino].nombre,
+                   tiempo_total);
+        }
+
+    } else if (modo == 2) {
+        printf("   RUTAS OPTIMIZADAS POR DISTANCIA \n");
+        printf("=====================================================\n");
+        printf("| Camion | Origen        -> Destino       | Distancia Total |\n");
+        printf("--------------------------------------------------------------\n");
+
+        float resultado[MAX_LOCALIDADES][MAX_LOCALIDADES];
+        floyd_distancia(resultado);
+
+        for (int i = 0; i < MAX_CAMIONES; i++) {
+            if (camionesArreglo[i].estado != DISPONIBLE) continue;
+
+            int origen = camionesArreglo[i].origen_id - 1;
+            int destino = camionesArreglo[i].destino_id - 1;
+
+            float distancia_total = resultado[origen][destino];
+            camionesArreglo[i].ruta[0] = camionesArreglo[i].destino_id;
+            camionesArreglo[i].total_ruta = 1;
+
+            printf("|   #%2d   | %-13s -> %-13s |   %6.1f km      |\n",
+                   camionesArreglo[i].id,
+                   localidadesArreglo[origen].nombre,
+                   localidadesArreglo[destino].nombre,
+                   distancia_total);
+        }
+
+    } else {
+        printf("Modo invalido. Usa 1 para TIEMPO o 2 para DISTANCIA.\n");
+    }
+    printf("--------------------------------------------------------------\n");
+}
+
 
 int main() {
+     int opcion;
     precargarDatos();
-    asignacion_optima_productos_camiones();
 
+    do {
+        printf("\n\n===== UVS EXPRESS - MENU PRINCIPAL =====\n");
+        printf("1. Asignar productos optimamente a camiones\n");
+        printf("2. Optimizar rutas y asignar a camiones (modo tiempo)\n");
+        printf("3. Optimizar rutas y asignar a camiones (modo distancia)\n");
+        printf("0. Salir\n");
+        printf("Selecciona una opcion: ");
+        scanf("%d", &opcion);
 
-    
+        switch (opcion) {
+            case 1:
+                asignacion_optima_productos_camiones();
+                break;
+            case 2:
+                optimizar_y_asignar_rutas(1);
+                break;
+            case 3:
+                optimizar_y_asignar_rutas(2);
+                break;
+            case 0:
+                printf("Saliendo del programa...\n");
+                break;
+            default:
+                printf("Opcion invalida. Intenta de nuevo.\n");
+        }
+    } while (opcion != 0);
+
     return 0;
 }
