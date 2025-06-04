@@ -204,7 +204,7 @@ void precargarDatos()
 }
 
 void imprimir_resultados_productos(int id_camion, const char* nombre_localidad, ProductoSeleccionado* seleccionados, int totalSeleccionados) {
-    printf("\nCamion #%d -> Localidad \"%s\":\n", id_camion, nombre_localidad);
+    printf("\nCamion #%d que va a la Localidad \"%s\":\n", id_camion, nombre_localidad);
 
     if (totalSeleccionados == 0) {
         printf("  No se asignaron productos.\n");
@@ -219,12 +219,12 @@ void imprimir_resultados_productos(int id_camion, const char* nombre_localidad, 
                    seleccionados[k].peso_total,
                    seleccionados[k].volumen_total);
         }
-        printf("  TOTAL VALOR ACUMULADO: %.2f\n", acumulado);
+        printf("  VALOR TOTAL ACUMULADO DE: %.2f\n", acumulado);
     }
 }
 
 
-void liberar_tabla_memoizacion(float*** tabla, int n, int pesoMax, int volumenMax) {
+void liberar_tabla_memoizacion(float*** tabla, int n, int pesoMax) {
     for (int i = 0; i < n; i++) {
         for (int w = 0; w <= pesoMax; w++) {
             free(tabla[i][w]);
@@ -294,7 +294,6 @@ void asignacion_optima_productos_camiones()
 
             ProductoSeleccionado seleccionados[MAX_PRODUCTOS];
             int totalSeleccionados = 0;
-            int w = pesoMax, v = volumenMax;
 
             for (int k = n - 1; k >= 0; k--)
             {
@@ -303,10 +302,10 @@ void asignacion_optima_productos_camiones()
                 int volumen = (int)(localidad->pedidos[k].producto->volumen * cantidad);
                 float valor = localidad->pedidos[k].producto->precio * cantidad;
 
-                float sin_tomar = (k == 0) ? 0 : tabla[k - 1][w][v];
-                float actual = tabla[k][w][v];
+                float sin_tomar = (k == 0) ? 0 : tabla[k - 1][pesoMax][volumenMax];
+                float actual = tabla[k][pesoMax][volumenMax];
 
-                if (peso <= w && volumen <= v && actual > sin_tomar)
+                if (peso <= pesoMax && volumen <= volumenMax && actual > sin_tomar)
                 {
                     seleccionados[totalSeleccionados].producto = localidad->pedidos[k].producto;
                     seleccionados[totalSeleccionados].cantidad = cantidad;
@@ -315,14 +314,14 @@ void asignacion_optima_productos_camiones()
                     seleccionados[totalSeleccionados].volumen_total = volumen;
                     totalSeleccionados++;
 
-                    w -= peso;
-                    v -= volumen;
+                    pesoMax -= peso;
+                    volumenMax -= volumen;
                 }
             }
 
             // Imprimir e imprimir
             imprimir_resultados_productos(camion->id, localidad->nombre, seleccionados, totalSeleccionados);
-            liberar_tabla_memoizacion(tabla, n, pesoMax, volumenMax);
+            liberar_tabla_memoizacion(tabla, n, pesoMax);
         }
     }
 }
