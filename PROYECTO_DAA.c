@@ -62,9 +62,9 @@ typedef struct
 {
     int id;
     float capacidadCarga;   // kg
-    float capacidadVolumen; // m³
+    float capacidadVolumen; // m cubicos
     EstadoCamion estado;
-    int ruta[MAX_LOCALIDADES]; // ids de localidades
+    int ruta[MAX_LOCALIDADES]; // id de localidades
     int total_ruta;
     int origen_id;
     int destino_id;
@@ -232,16 +232,15 @@ void liberar_tabla_memoizacion(float ***tabla, int n, int pesoMax)
 {
     for (int i = 0; i < n; i++)
     {
-        for (int w = 0; w <= pesoMax; w++)
+        for (int j = 0; j <= pesoMax; j++)
         {
-            free(tabla[i][w]);
+            free(tabla[i][j]);
         }
         free(tabla[i]);
     }
     free(tabla);
 }
 
-// Memoización: dp[i][w][v] == -1.0 si no está calculado
 float resolver_top_down(Pedido *pedidos, int i, int peso_restante, int volumen_restante, float ***tabla)
 {
     if (i < 0 || peso_restante < 0 || volumen_restante < 0)
@@ -265,6 +264,11 @@ float resolver_top_down(Pedido *pedidos, int i, int peso_restante, int volumen_r
     tabla[i][peso_restante][volumen_restante] = fmax(sin_tomar, tomar);
     return tabla[i][peso_restante][volumen_restante];
 }
+
+int no_totalSeleccionados = 0;
+ProductoSeleccionado no_seleccionados[MAX_PRODUCTOS];
+ProductoSeleccionado seleccionados[MAX_PRODUCTOS];
+int totalSeleccionados = 0;
 
 void asignacion_optima_productos_camiones()
 {
@@ -298,8 +302,8 @@ void asignacion_optima_productos_camiones()
 
             resolver_top_down(localidad->pedidos, n - 1, pesoMax, volumenMax, tabla);
 
-            ProductoSeleccionado seleccionados[MAX_PRODUCTOS];
-            int totalSeleccionados = 0;
+            ProductoSeleccionado selec[MAX_PRODUCTOS];
+            int totalselec = 0;
 
             for (int k = n - 1; k >= 0; k--)
             {
@@ -313,20 +317,36 @@ void asignacion_optima_productos_camiones()
 
                 if (peso <= pesoMax && volumen <= volumenMax && actual > sin_tomar)
                 {
-                    seleccionados[totalSeleccionados].producto = localidad->pedidos[k].producto;
-                    seleccionados[totalSeleccionados].cantidad = cantidad;
-                    seleccionados[totalSeleccionados].valor_total = valor;
-                    seleccionados[totalSeleccionados].peso_total = peso;
-                    seleccionados[totalSeleccionados].volumen_total = volumen;
-                    totalSeleccionados++;
+                    selec[totalselec].producto = localidad->pedidos[k].producto;
+                    selec[totalselec].cantidad = cantidad;
+                    selec[totalselec].valor_total = valor;
+                    selec[totalselec].peso_total = peso;
+                    selec[totalselec].volumen_total = volumen;
+                    totalselec++;
 
                     pesoMax -= peso;
                     volumenMax -= volumen;
                 }
+                else
+                {
+                    no_seleccionados[no_totalSeleccionados].producto = localidad->pedidos[k].producto;
+                    no_seleccionados[no_totalSeleccionados].cantidad = cantidad;
+                    no_seleccionados[no_totalSeleccionados].valor_total = valor;
+                    no_seleccionados[no_totalSeleccionados].peso_total = peso;
+                    no_seleccionados[no_totalSeleccionados].volumen_total = volumen;
+                    no_totalSeleccionados++;
+                }
+            }
+
+            totalSeleccionados = totalselec;
+
+            for (int i = 0; i < totalSeleccionados; i++)
+            {
+                seleccionados[i] = selec[i];
             }
 
             // Imprimir e imprimir
-            imprimir_resultados_productos(camion->id, localidad->nombre, seleccionados, totalSeleccionados);
+            imprimir_resultados_productos(camion->id, localidad->nombre, selec, totalselec);
             liberar_tabla_memoizacion(tabla, n, pesoMax);
         }
     }
@@ -479,12 +499,62 @@ void optimizar_y_asignar_rutas(int modo)
     printf("--------------------------------------------------------------\n");
 }
 
-int submenu_ordenar_productos()
+void merge(int left, int centro, int right, ProductoSeleccionado a[])
+{
+    int tam = right - left + 1;
+    ProductoSeleccionado *temp = malloc(tam * sizeof(ProductoSeleccionado));
+    int i = left, j = centro + 1, k = 0;
+
+    while (i <= centro && j <= right)
+    {
+        if (a[i].peso_total <= a[j].peso_total)
+            temp[k++] = a[i++];
+        else
+            temp[k++] = a[j++];
+    }
+
+    while (i <= centro)
+        temp[k++] = a[i++];
+
+    while (j <= right)
+        temp[k++] = a[j++];
+
+    // Copiar el resultado ordenado de temp[] a a[]
+    for (i = left, k = 0; i <= right; i++, k++)
+        a[i] = temp[k];
+
+    free(temp);
+}
+
+void mergeSort(int left, int right, ProductoSeleccionado a[])
+{
+    if (left < right)
+    {
+        int centro = (left + right) / 2;
+        mergeSort(left, centro, a);
+        mergeSort(centro + 1, right, a);
+        merge(left, centro, right, a);
+    }
+}
+
+void imprimir_arreglo(ProductoSeleccionado a[], int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        printf("Producto: %s | Cantidad: %d | Peso: %.2f | Volumen: %.2f\n",
+               a[i].producto->nombre,
+               a[i].cantidad,
+               a[i].peso_total,
+               a[i].volumen_total);
+    }
+}
+
+void submenu_ordenar_productos()
 {
     int opcion;
     do
     {
-        printf("\n\n===== UVS EXPRESS - MENU CATEGORIAS =====\n");
+        printf("\n\n===== UVS EXPRESS - MENU CATEGORIAS PRODUCTOS=====\n");
         printf("1. Ordenar por nombre (Aun no asignados)\n");
         printf("2. Ordenar por peso (Aun no asignados)\n");
         printf("3. Ordenar por volumen (Aun no asignados)\n");
@@ -501,8 +571,17 @@ int submenu_ordenar_productos()
             printf("Ordenando por nombre (Aun no asignados)...\n");
             break;
         case 2:
+
+            if (no_totalSeleccionados <= 0)
+            {
+                printf("No hay productos no asignados para ordenar.\n");
+                break;
+            }
             printf("Ordenando por peso (Aun no asignados)...\n");
+            mergeSort(0, no_totalSeleccionados - 1, no_seleccionados);
+            imprimir_arreglo(no_seleccionados, no_totalSeleccionados);
             break;
+
         case 3:
             printf("Ordenando por volumen (Aun no asignados)...\n");
             break;
@@ -524,11 +603,9 @@ int submenu_ordenar_productos()
     } while (opcion != 0);
 }
 
-int main()
+void menuPrincipal()
 {
     int opcion;
-    precargarDatos();
-
     do
     {
         printf("\n\n===== UVS EXPRESS - MENU PRINCIPAL =====\n");
@@ -561,6 +638,12 @@ int main()
             printf("Opcion invalida. Intenta de nuevo.\n");
         }
     } while (opcion != 0);
+}
+
+int main()
+{
+    precargarDatos();
+    menuPrincipal();
 
     return 0;
 }
