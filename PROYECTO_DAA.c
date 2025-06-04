@@ -203,14 +203,19 @@ void precargarDatos()
     }
 }
 
-void imprimir_resultados_productos(int id_camion, const char* nombre_localidad, ProductoSeleccionado* seleccionados, int totalSeleccionados) {
+void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, ProductoSeleccionado *seleccionados, int totalSeleccionados)
+{
     printf("\nCamion #%d que va a la Localidad \"%s\":\n", id_camion, nombre_localidad);
 
-    if (totalSeleccionados == 0) {
+    if (totalSeleccionados == 0)
+    {
         printf("  No se asignaron productos.\n");
-    } else {
+    }
+    else
+    {
         float acumulado = 0;
-        for (int k = 0; k < totalSeleccionados; k++) {
+        for (int k = 0; k < totalSeleccionados; k++)
+        {
             acumulado += seleccionados[k].valor_total;
             printf("  - %s | Cantidad: %d | Valor: %.2f | Peso: %.2f | Volumen: %.2f\n",
                    seleccionados[k].producto->nombre,
@@ -223,17 +228,18 @@ void imprimir_resultados_productos(int id_camion, const char* nombre_localidad, 
     }
 }
 
-
-void liberar_tabla_memoizacion(float*** tabla, int n, int pesoMax) {
-    for (int i = 0; i < n; i++) {
-        for (int w = 0; w <= pesoMax; w++) {
+void liberar_tabla_memoizacion(float ***tabla, int n, int pesoMax)
+{
+    for (int i = 0; i < n; i++)
+    {
+        for (int w = 0; w <= pesoMax; w++)
+        {
             free(tabla[i][w]);
         }
         free(tabla[i]);
     }
     free(tabla);
 }
-
 
 // Memoización: dp[i][w][v] == -1.0 si no está calculado
 float resolver_top_down(Pedido *pedidos, int i, int peso_restante, int volumen_restante, float ***tabla)
@@ -325,7 +331,6 @@ void asignacion_optima_productos_camiones()
         }
     }
 }
-
 
 float matriz_tiempo[MAX_LOCALIDADES][MAX_LOCALIDADES];
 float matriz_distancia[MAX_LOCALIDADES][MAX_LOCALIDADES];
@@ -474,6 +479,51 @@ void optimizar_y_asignar_rutas(int modo)
     printf("--------------------------------------------------------------\n");
 }
 
+int submenu_ordenar_productos()
+{
+    int opcion;
+    do
+    {
+        printf("\n\n===== UVS EXPRESS - MENU CATEGORIAS =====\n");
+        printf("1. Ordenar por nombre (Aun no asignados)\n");
+        printf("2. Ordenar por peso (Aun no asignados)\n");
+        printf("3. Ordenar por volumen (Aun no asignados)\n");
+        printf("4. Ordenar por nombre \n");
+        printf("5. Ordenar por peso \n");
+        printf("6. Ordenar por volumen \n");
+        printf("0. Atras\n");
+        printf("Selecciona una opcion: ");
+        scanf("%d", &opcion);
+
+        switch (opcion)
+        {
+        case 1:
+            printf("Ordenando por nombre (Aun no asignados)...\n");
+            break;
+        case 2:
+            printf("Ordenando por peso (Aun no asignados)...\n");
+            break;
+        case 3:
+            printf("Ordenando por volumen (Aun no asignados)...\n");
+            break;
+        case 4:
+            printf("Ordenando por nombre...\n");
+            break;
+        case 5:
+            printf("Ordenando por peso...\n");
+            break;
+        case 6:
+            printf("Ordenando por volumen...\n");
+            break;
+        case 0:
+            printf("Saliendo del submenu...\n");
+            break;
+        default:
+            printf("Opcion invalida. Intenta de nuevo.\n");
+        }
+    } while (opcion != 0);
+}
+
 int main()
 {
     int opcion;
@@ -485,6 +535,7 @@ int main()
         printf("1. Asignar productos optimamente a camiones\n");
         printf("2. Optimizar rutas y asignar a camiones (modo tiempo)\n");
         printf("3. Optimizar rutas y asignar a camiones (modo distancia)\n");
+        printf("4. Ordenar por...\n");
         printf("0. Salir\n");
         printf("Selecciona una opcion: ");
         scanf("%d", &opcion);
@@ -499,6 +550,9 @@ int main()
             break;
         case 3:
             optimizar_y_asignar_rutas(2);
+            break;
+        case 4:
+            submenu_ordenar_productos();
             break;
         case 0:
             printf("Saliendo del programa...\n");
