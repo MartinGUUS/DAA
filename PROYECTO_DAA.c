@@ -53,6 +53,11 @@ typedef enum {
 } EstadoCamion;
 
 typedef struct {
+    int nodo;
+    float distancia;
+} NodoHeap;
+
+typedef struct {
     int id;
     float capacidadCarga;   // kg
     float capacidadVolumen; // m³
@@ -351,11 +356,58 @@ void optimizar_y_asignar_rutas(int modo) {
     inicializar_matrices_rutas();
 
     printf("\n==================================================\n");
+
     if (modo == 1) {
         printf("   RUTAS OPTIMIZADAS POR TIEMPO \n");
         printf("==================================================\n");
         printf("| Camion | Origen        -> Destino       | Tiempo Estimado |\n");
         printf("--------------------------------------------------------------\n");
+
+        void intercambiar(NodoHeap *a, NodoHeap *b) {
+            NodoHeap temp = *a;
+            *a = *b;
+            *b = temp;
+        }
+
+        void heapify_arriba(NodoHeap heap[], int idx) {
+            while (idx > 0) {
+                int padre = (idx - 1) / 2;
+                if (heap[idx].distancia < heap[padre].distancia) {
+                    intercambiar(&heap[idx], &heap[padre]);
+                    idx = padre;
+                } else break;
+            }
+        }
+
+        void heapify_abajo(NodoHeap heap[], int size, int idx) {
+            while (1) {
+                int menor = idx;
+                int izq = 2 * idx + 1;
+                int der = 2 * idx + 2;
+
+                if (izq < size && heap[izq].distancia < heap[menor].distancia) menor = izq;
+                if (der < size && heap[der].distancia < heap[menor].distancia) menor = der;
+
+                if (menor != idx) {
+                    intercambiar(&heap[idx], &heap[menor]);
+                    idx = menor;
+                } else break;
+            }
+        }
+
+        void insertar_heap(NodoHeap heap[], int *size, int nodo, float dist) {
+            heap[*size].nodo = nodo;
+            heap[*size].distancia = dist;
+            heapify_arriba(heap, *size);
+            (*size)++;
+        }
+
+        NodoHeap extraer_min(NodoHeap heap[], int *size) {
+            NodoHeap min = heap[0];
+            heap[0] = heap[--(*size)];
+            heapify_abajo(heap, *size, 0);
+            return min;
+        }
 
         for (int i = 0; i < MAX_CAMIONES; i++) {
             if (camionesArreglo[i].estado != DISPONIBLE) continue;
@@ -364,17 +416,46 @@ void optimizar_y_asignar_rutas(int modo) {
             int destino = camionesArreglo[i].destino_id - 1;
 
             float distancias[MAX_LOCALIDADES];
-            dijkstra_tiempo(origen, distancias);
+            bool visitado[MAX_LOCALIDADES] = {false};
+            NodoHeap heap[MAX_LOCALIDADES * MAX_LOCALIDADES];
+            int heap_size = 0;
+
+            for (int k = 0; k < MAX_LOCALIDADES; k++) distancias[k] = INF;
+            distancias[origen] = 0;
+            insertar_heap(heap, &heap_size, origen, 0);
+
+            while (heap_size > 0) {
+                NodoHeap actual = extraer_min(heap, &heap_size);
+                int u = actual.nodo;
+
+                if (visitado[u]) continue;
+                visitado[u] = true;
+
+                for (int v = 0; v < MAX_LOCALIDADES; v++) {
+                    float peso = matriz_tiempo[u][v];
+                    if (peso < INF && distancias[u] + peso < distancias[v]) {
+                        distancias[v] = distancias[u] + peso;
+                        insertar_heap(heap, &heap_size, v, distancias[v]);
+                    }
+                }
+            }
 
             float tiempo_total = distancias[destino];
             camionesArreglo[i].ruta[0] = camionesArreglo[i].destino_id;
             camionesArreglo[i].total_ruta = 1;
 
-            printf("|   #%2d   | %-13s -> %-13s |   %6.1f min     |\n",
-                   camionesArreglo[i].id,
-                   localidadesArreglo[origen].nombre,
-                   localidadesArreglo[destino].nombre,
-                   tiempo_total);
+            if (tiempo_total >= INF) {
+                printf("|   #%2d   | %-13s -> %-13s |   RUTA NO DISP.  |\n",
+                    camionesArreglo[i].id,
+                    localidadesArreglo[origen].nombre,
+                    localidadesArreglo[destino].nombre);
+            } else {
+                printf("|   #%2d   | %-13s -> %-13s |   %6.1f min     |\n",
+                    camionesArreglo[i].id,
+                    localidadesArreglo[origen].nombre,
+                    localidadesArreglo[destino].nombre,
+                    tiempo_total);
+            }
         }
 
     } else if (modo == 2) {
@@ -384,7 +465,16 @@ void optimizar_y_asignar_rutas(int modo) {
         printf("--------------------------------------------------------------\n");
 
         float resultado[MAX_LOCALIDADES][MAX_LOCALIDADES];
-        floyd_distancia(resultado);
+
+        for (int i = 0; i < MAX_LOCALIDADES; i++)
+            for (int j = 0; j < MAX_LOCALIDADES; j++)
+                resultado[i][j] = matriz_distancia[i][j];
+
+        for (int k = 0; k < MAX_LOCALIDADES; k++)
+            for (int i = 0; i < MAX_LOCALIDADES; i++)
+                for (int j = 0; j < MAX_LOCALIDADES; j++)
+                    if (resultado[i][k] + resultado[k][j] < resultado[i][j])
+                        resultado[i][j] = resultado[i][k] + resultado[k][j];
 
         for (int i = 0; i < MAX_CAMIONES; i++) {
             if (camionesArreglo[i].estado != DISPONIBLE) continue;
@@ -396,16 +486,24 @@ void optimizar_y_asignar_rutas(int modo) {
             camionesArreglo[i].ruta[0] = camionesArreglo[i].destino_id;
             camionesArreglo[i].total_ruta = 1;
 
-            printf("|   #%2d   | %-13s -> %-13s |   %6.1f km      |\n",
-                   camionesArreglo[i].id,
-                   localidadesArreglo[origen].nombre,
-                   localidadesArreglo[destino].nombre,
-                   distancia_total);
+            if (distancia_total >= INF) {
+                printf("|   #%2d   | %-13s -> %-13s |   RUTA NO DISP.  |\n",
+                    camionesArreglo[i].id,
+                    localidadesArreglo[origen].nombre,
+                    localidadesArreglo[destino].nombre);
+            } else {
+                printf("|   #%2d   | %-13s -> %-13s |   %6.1f km      |\n",
+                    camionesArreglo[i].id,
+                    localidadesArreglo[origen].nombre,
+                    localidadesArreglo[destino].nombre,
+                    distancia_total);
+            }
         }
 
     } else {
         printf("Modo invalido. Usa 1 para TIEMPO o 2 para DISTANCIA.\n");
     }
+
     printf("--------------------------------------------------------------\n");
 }
 
