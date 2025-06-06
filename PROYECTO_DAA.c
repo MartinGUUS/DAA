@@ -743,6 +743,45 @@ void quick_sort_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto) {
 }
 
 
+int obtener_max_volumen_entero(ProductoSeleccionado arr[], int n) {
+    int max = (int)(arr[0].volumen_total * 100);
+    for (int i = 1; i < n; i++) {
+        int val = (int)(arr[i].volumen_total * 100);
+        if (val > max) max = val;
+    }
+    return max;
+}
+
+void contar_por_digito_volumen(ProductoSeleccionado arr[], int n, int exp) {
+    ProductoSeleccionado salida[MAX_PRODUCTOS];
+    int cuenta[10] = {0};
+
+    for (int i = 0; i < n; i++) {
+        int val = (int)(arr[i].volumen_total * 100);
+        cuenta[(val / exp) % 10]++;
+    }
+
+    for (int i = 1; i < 10; i++)
+        cuenta[i] += cuenta[i - 1];
+
+    for (int i = n - 1; i >= 0; i--) {
+        int val = (int)(arr[i].volumen_total * 100);
+        int idx = (val / exp) % 10;
+        salida[--cuenta[idx]] = arr[i];
+    }
+
+    for (int i = 0; i < n; i++)
+        arr[i] = salida[i];
+}
+
+void radix_sort_asignados_volumen(ProductoSeleccionado arr[], int n) {
+    if (n <= 1) return;
+
+    int max_val = obtener_max_volumen_entero(arr, n);
+    for (int exp = 1; max_val / exp > 0; exp *= 10)
+        contar_por_digito_volumen(arr, n, exp);
+}
+
 
 void submenu_ordenar_productos()
 {
@@ -795,7 +834,7 @@ void submenu_ordenar_productos()
              break;
 
         case 5:
-        
+
             if (totalSeleccionados <= 0)
              {
 
@@ -809,8 +848,19 @@ void submenu_ordenar_productos()
              break;
 
         case 6:
-            printf("Ordenando por volumen...\n");
+        
+            if (totalSeleccionados <= 0) 
+            {
+
+            printf("No hay productos asignados para ordenar.\n");
             break;
+
+            }
+            printf("Ordenando por volumen (asignados)...\n");
+            radix_sort_asignados_volumen(seleccionados, totalSeleccionados);
+            imprimir_arreglo(seleccionados, totalSeleccionados);
+            break;
+
         case 0:
             printf("Saliendo del submenu...\n");
             break;
