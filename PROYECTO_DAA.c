@@ -229,7 +229,7 @@ void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, 
 
     if (deci == 0)
     {
-        printf("  No se asignaron productos.\n");
+        // printf("  No se asignaron productos.\n");
         no_seleccionados[total_no] = seleccionados[0];
         total_no++;
         printf("  TOTAL DE PRODUCTOS NO ASIGNADOS: %d\n", total_no);
