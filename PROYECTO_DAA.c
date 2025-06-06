@@ -133,8 +133,8 @@ void precargarDatos()
     {
         localidadesArreglo[i].id = i + 1;
         sprintf(localidadesArreglo[i].nombre, "Localidad %d", (i + 1));
-        localidadesArreglo[i].latitud = (float)(rand() % 90);
-        localidadesArreglo[i].longitud = (float)(rand() % 180);
+        localidadesArreglo[i].latitud = (float)(rand() % 90) + 1;
+        localidadesArreglo[i].longitud = (float)(rand() % 180) + 1;
         localidadesArreglo[i].total_pedidos = 1 + rand() % 6; // 1 a 6 pedidos
 
         for (int j = 0; j < localidadesArreglo[i].total_pedidos; j++)
@@ -227,7 +227,7 @@ void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, 
 {
     printf("\nCamion #%d que va a la Localidad \"%s\":\n", id_camion, nombre_localidad);
 
-    if (deci == 0)
+    if (deci == 0 && totalSeleccionados > 0)
     {
         // printf("  No se asignaron productos.\n");
         no_seleccionados[total_no] = seleccionados[0];
