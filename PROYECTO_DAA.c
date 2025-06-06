@@ -40,6 +40,11 @@ typedef struct
     float volumen_total;
 } ProductoSeleccionado;
 
+int total_no = 0;
+int total_si = 0;
+ProductoSeleccionado si_seleccionados[MAX_PRODUCTOS * 2];
+ProductoSeleccionado no_seleccionados[MAX_PRODUCTOS * 2];
+
 typedef struct
 {
     int id;
@@ -59,7 +64,8 @@ typedef enum
     MANTENIMIENTO
 } EstadoCamion;
 
-typedef struct {
+typedef struct
+{
     int nodo;
     float distancia;
 } NodoHeap;
@@ -100,12 +106,13 @@ typedef struct
 
 Conexion conexionesArreglo[MAX_CONEXIONES];
 
-typedef struct NodoHash {
+typedef struct NodoHash
+{
     ProductoSeleccionado prod;
-    struct NodoHash* sig;
+    struct NodoHash *sig;
 } NodoHash;
 
-NodoHash* tablaHash[HASH_SIZE]; 
+NodoHash *tablaHash[HASH_SIZE];
 
 void precargarDatos()
 {
@@ -116,9 +123,9 @@ void precargarDatos()
     {
         productosArreglo[i].id = i + 1;
         sprintf(productosArreglo[i].nombre, "Producto %d", (i + 1));
-        productosArreglo[i].precio = (rand() % 200);
-        productosArreglo[i].peso = (rand() % 50);
-        productosArreglo[i].volumen = (rand() % 50);
+        productosArreglo[i].precio = 10 + (rand() % 200);
+        productosArreglo[i].peso = 2 + (rand() % 50);
+        productosArreglo[i].volumen = 1 + (rand() % 50);
     }
 
     // PRECARGA DE LOCALIDADES
@@ -216,28 +223,35 @@ void precargarDatos()
     }
 }
 
-void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, ProductoSeleccionado *seleccionados, int totalSeleccionados)
+void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, ProductoSeleccionado *seleccionados, int totalSeleccionados, int deci)
 {
     printf("\nCamion #%d que va a la Localidad \"%s\":\n", id_camion, nombre_localidad);
 
-    if (totalSeleccionados == 0)
+    if (deci == 0)
     {
         printf("  No se asignaron productos.\n");
+        no_seleccionados[total_no] = seleccionados[0];
+        total_no++;
+        printf("  TOTAL DE PRODUCTOS NO ASIGNADOS: %d\n", total_no);
     }
     else
     {
+
         float acumulado = 0;
         for (int k = 0; k < totalSeleccionados; k++)
         {
+            si_seleccionados[total_si + k] = seleccionados[k];
+
             acumulado += seleccionados[k].valor_total;
-            printf("  - %s | Cantidad: %d | Valor: %.2f | Peso: %.2f | Volumen: %.2f\n",
+            printf("  - %s  | Valor: %.2f | Peso: %.2f | Volumen: %.2f\n",
                    seleccionados[k].producto->nombre,
-                   seleccionados[k].cantidad,
                    seleccionados[k].valor_total,
                    seleccionados[k].peso_total,
                    seleccionados[k].volumen_total);
         }
         printf("  VALOR TOTAL ACUMULADO DE: %.2f\n", acumulado);
+        total_si += totalSeleccionados;
+        printf("  TOTAL DE PRODUCTOS ASIGNADOS: %d\n", total_si);
     }
 }
 
@@ -254,7 +268,13 @@ void liberar_tabla_memoizacion(float ***tabla, int n, int pesoMax)
     free(tabla);
 }
 
-float resolver_top_down(Pedido *pedidos, int i, int peso_restante, int volumen_restante, float ***tabla)
+typedef struct
+{
+    bool *decisiones;
+} DecisionProductos;
+
+float resolver_top_down(Pedido *pedidos, int i, int peso_restante, int volumen_restante,
+                        float ***tabla, DecisionProductos *dp)
 {
     if (i < 0 || peso_restante < 0 || volumen_restante < 0)
         return 0;
@@ -268,18 +288,32 @@ float resolver_top_down(Pedido *pedidos, int i, int peso_restante, int volumen_r
     int volumen = (int)(actual.producto->volumen * cantidad);
     float valor = actual.producto->precio * cantidad;
 
-    float sin_tomar = resolver_top_down(pedidos, i - 1, peso_restante, volumen_restante, tabla);
+    float sin_tomar = resolver_top_down(pedidos, i - 1, peso_restante, volumen_restante, tabla, dp);
 
     float tomar = 0;
     if (peso <= peso_restante && volumen <= volumen_restante)
-        tomar = valor + resolver_top_down(pedidos, i - 1, peso_restante - peso, volumen_restante - volumen, tabla);
+    {
+        tomar = valor + resolver_top_down(pedidos, i - 1, peso_restante - peso,
+                                          volumen_restante - volumen, tabla, dp);
+    }
 
-    tabla[i][peso_restante][volumen_restante] = fmax(sin_tomar, tomar);
+    // Guardar decisión
+    if (tomar > sin_tomar)
+    {
+        dp->decisiones[i] = true;
+        tabla[i][peso_restante][volumen_restante] = tomar;
+    }
+    else
+    {
+        dp->decisiones[i] = false;
+        tabla[i][peso_restante][volumen_restante] = sin_tomar;
+    }
+
     return tabla[i][peso_restante][volumen_restante];
 }
 
 int no_totalSeleccionados = 0;
-ProductoSeleccionado no_seleccionados[MAX_PRODUCTOS];
+ProductoSeleccionado seleccionados_no[MAX_PRODUCTOS];
 ProductoSeleccionado seleccionados[MAX_PRODUCTOS];
 int totalSeleccionados = 0;
 
@@ -301,6 +335,7 @@ void asignacion_optima_productos_camiones()
             int pesoMax = (int)camion->capacidadCarga;
             int volumenMax = (int)camion->capacidadVolumen;
 
+            // Inicializar tabla
             float ***tabla = malloc(n * sizeof(float **));
             for (int i = 0; i < n; i++)
             {
@@ -313,55 +348,65 @@ void asignacion_optima_productos_camiones()
                 }
             }
 
-            resolver_top_down(localidad->pedidos, n - 1, pesoMax, volumenMax, tabla);
+            // Inicializar estructura de decisiones
+            DecisionProductos dp;
+            dp.decisiones = calloc(n, sizeof(bool));
 
-            ProductoSeleccionado selec[MAX_PRODUCTOS];
-            int totalselec = 0;
+            // Resolver problema
+            resolver_top_down(localidad->pedidos, n - 1, pesoMax, volumenMax, tabla, &dp);
 
-            for (int k = n - 1; k >= 0; k--)
+            // Reiniciar contadores
+            totalSeleccionados = 0;
+            no_totalSeleccionados = 0;
+            int deci = 0;
+            // Reconstruir solución
+            for (int k = 0; k < n; k++)
             {
-                int cantidad = localidad->pedidos[k].cantidad;
-                int peso = (int)(localidad->pedidos[k].producto->peso * cantidad);
-                int volumen = (int)(localidad->pedidos[k].producto->volumen * cantidad);
-                float valor = localidad->pedidos[k].producto->precio * cantidad;
+                Pedido actual = localidad->pedidos[k];
+                int cantidad = actual.cantidad;
+                float valor = actual.producto->precio * cantidad;
+                int peso = (int)(actual.producto->peso * cantidad);
+                int volumen = (int)(actual.producto->volumen * cantidad);
 
-                float sin_tomar = (k == 0) ? 0 : tabla[k - 1][pesoMax][volumenMax];
-                float actual = tabla[k][pesoMax][volumenMax];
-
-                if (peso <= pesoMax && volumen <= volumenMax && actual > sin_tomar)
+                if (dp.decisiones[k])
                 {
-                    selec[totalselec].producto = localidad->pedidos[k].producto;
-                    selec[totalselec].cantidad = cantidad;
-                    selec[totalselec].valor_total = valor;
-                    selec[totalselec].peso_total = peso;
-                    selec[totalselec].volumen_total = volumen;
-                    totalselec++;
-
-                    pesoMax -= peso;
-                    volumenMax -= volumen;
+                    // Agregar a seleccionados
+                    seleccionados[totalSeleccionados].producto = actual.producto;
+                    seleccionados[totalSeleccionados].cantidad = cantidad;
+                    seleccionados[totalSeleccionados].valor_total = valor;
+                    seleccionados[totalSeleccionados].peso_total = peso;
+                    seleccionados[totalSeleccionados].volumen_total = volumen;
+                    totalSeleccionados++;
+                    deci = 1;
                 }
                 else
                 {
-                    no_seleccionados[no_totalSeleccionados].producto = localidad->pedidos[k].producto;
-                    no_seleccionados[no_totalSeleccionados].cantidad = cantidad;
-                    no_seleccionados[no_totalSeleccionados].valor_total = valor;
-                    no_seleccionados[no_totalSeleccionados].peso_total = peso;
-                    no_seleccionados[no_totalSeleccionados].volumen_total = volumen;
+                    // Agregar a no seleccionados
+                    seleccionados_no[no_totalSeleccionados].producto = actual.producto;
+                    seleccionados_no[no_totalSeleccionados].cantidad = cantidad;
+                    seleccionados_no[no_totalSeleccionados].valor_total = valor;
+                    seleccionados_no[no_totalSeleccionados].peso_total = peso;
+                    seleccionados_no[no_totalSeleccionados].volumen_total = volumen;
                     no_totalSeleccionados++;
+                    deci = 0;
                 }
             }
 
-            totalSeleccionados = totalselec;
-
-            for (int i = 0; i < totalSeleccionados; i++)
-            {
-                seleccionados[i] = selec[i];
-            }
-
-            // Imprimir e imprimir
-            imprimir_resultados_productos(camion->id, localidad->nombre, selec, totalselec);
+            // Imprimir resultados y liberar memoria
+            imprimir_resultados_productos(camion->id, localidad->nombre,
+                                          seleccionados, totalSeleccionados, deci);
             liberar_tabla_memoizacion(tabla, n, pesoMax);
+            free(dp.decisiones);
         }
+    }
+    for (int i = 0; i < total_no; i++)
+    {
+        printf("\n==================================================\n");
+        printf("Producto no asignado: %s | Cantidad: %d | Peso: %.2f | Volumen: %.2f\n",
+               no_seleccionados[i].producto->nombre,
+               no_seleccionados[i].cantidad,
+               no_seleccionados[i].peso_total,
+               no_seleccionados[i].volumen_total);
     }
 }
 
@@ -442,62 +487,78 @@ void floyd_distancia(float resultado[MAX_LOCALIDADES][MAX_LOCALIDADES])
                     resultado[i][j] = resultado[i][k] + resultado[k][j];
 }
 
+void intercambiar(NodoHeap *a, NodoHeap *b)
+{
+    NodoHeap temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+void heapify_arriba(NodoHeap heap[], int idx)
+{
+    while (idx > 0)
+    {
+        int padre = (idx - 1) / 2;
+        if (heap[idx].distancia < heap[padre].distancia)
+        {
+            intercambiar(&heap[idx], &heap[padre]);
+            idx = padre;
+        }
+        else
+            break;
+    }
+}
+
+void heapify_abajo(NodoHeap heap[], int size, int idx)
+{
+    while (1)
+    {
+        int menor = idx;
+        int izq = 2 * idx + 1;
+        int der = 2 * idx + 2;
+
+        if (izq < size && heap[izq].distancia < heap[menor].distancia)
+            menor = izq;
+        if (der < size && heap[der].distancia < heap[menor].distancia)
+            menor = der;
+
+        if (menor != idx)
+        {
+            intercambiar(&heap[idx], &heap[menor]);
+            idx = menor;
+        }
+        else
+            break;
+    }
+}
+
+void insertar_heap(NodoHeap heap[], int *size, int nodo, float dist)
+{
+    heap[*size].nodo = nodo;
+    heap[*size].distancia = dist;
+    heapify_arriba(heap, *size);
+    (*size)++;
+}
+
+NodoHeap extraer_min(NodoHeap heap[], int *size)
+{
+    NodoHeap min = heap[0];
+    heap[0] = heap[--(*size)];
+    heapify_abajo(heap, *size, 0);
+    return min;
+}
+
 void optimizar_y_asignar_rutas(int modo)
 {
     inicializar_matrices_rutas();
 
     printf("\n==================================================\n");
-    if (modo == 1) {
+    if (modo == 1)
+    {
         printf("   RUTAS OPTIMIZADAS POR TIEMPO \n");
         printf("==================================================\n");
         printf("| Camion | Origen        -> Destino       | Tiempo Estimado |\n");
         printf("--------------------------------------------------------------\n");
-
-        void intercambiar(NodoHeap *a, NodoHeap *b) {
-            NodoHeap temp = *a;
-            *a = *b;
-            *b = temp;
-        }
-
-        void heapify_arriba(NodoHeap heap[], int idx) {
-            while (idx > 0) {
-                int padre = (idx - 1) / 2;
-                if (heap[idx].distancia < heap[padre].distancia) {
-                    intercambiar(&heap[idx], &heap[padre]);
-                    idx = padre;
-                } else break;
-            }
-        }
-
-        void heapify_abajo(NodoHeap heap[], int size, int idx) {
-            while (1) {
-                int menor = idx;
-                int izq = 2 * idx + 1;
-                int der = 2 * idx + 2;
-
-                if (izq < size && heap[izq].distancia < heap[menor].distancia) menor = izq;
-                if (der < size && heap[der].distancia < heap[menor].distancia) menor = der;
-
-                if (menor != idx) {
-                    intercambiar(&heap[idx], &heap[menor]);
-                    idx = menor;
-                } else break;
-            }
-        }
-
-        void insertar_heap(NodoHeap heap[], int *size, int nodo, float dist) {
-            heap[*size].nodo = nodo;
-            heap[*size].distancia = dist;
-            heapify_arriba(heap, *size);
-            (*size)++;
-        }
-
-        NodoHeap extraer_min(NodoHeap heap[], int *size) {
-            NodoHeap min = heap[0];
-            heap[0] = heap[--(*size)];
-            heapify_abajo(heap, *size, 0);
-            return min;
-        }
 
         for (int i = 0; i < MAX_CAMIONES; i++)
         {
@@ -512,20 +573,25 @@ void optimizar_y_asignar_rutas(int modo)
             NodoHeap heap[MAX_LOCALIDADES * MAX_LOCALIDADES];
             int heap_size = 0;
 
-            for (int k = 0; k < MAX_LOCALIDADES; k++) distancias[k] = INF;
+            for (int k = 0; k < MAX_LOCALIDADES; k++)
+                distancias[k] = INF;
             distancias[origen] = 0;
             insertar_heap(heap, &heap_size, origen, 0);
 
-            while (heap_size > 0) {
+            while (heap_size > 0)
+            {
                 NodoHeap actual = extraer_min(heap, &heap_size);
                 int u = actual.nodo;
 
-                if (visitado[u]) continue;
+                if (visitado[u])
+                    continue;
                 visitado[u] = true;
 
-                for (int v = 0; v < MAX_LOCALIDADES; v++) {
+                for (int v = 0; v < MAX_LOCALIDADES; v++)
+                {
                     float peso = matriz_tiempo[u][v];
-                    if (peso < INF && distancias[u] + peso < distancias[v]) {
+                    if (peso < INF && distancias[u] + peso < distancias[v])
+                    {
                         distancias[v] = distancias[u] + peso;
                         insertar_heap(heap, &heap_size, v, distancias[v]);
                     }
@@ -536,17 +602,20 @@ void optimizar_y_asignar_rutas(int modo)
             camionesArreglo[i].ruta[0] = camionesArreglo[i].destino_id;
             camionesArreglo[i].total_ruta = 1;
 
-            if (tiempo_total >= INF) {
+            if (tiempo_total >= INF)
+            {
                 printf("|   #%2d   | %-13s -> %-13s |   RUTA NO DISP.  |\n",
-                    camionesArreglo[i].id,
-                    localidadesArreglo[origen].nombre,
-                    localidadesArreglo[destino].nombre);
-            } else {
+                       camionesArreglo[i].id,
+                       localidadesArreglo[origen].nombre,
+                       localidadesArreglo[destino].nombre);
+            }
+            else
+            {
                 printf("|   #%2d   | %-13s -> %-13s |   %6.1f min     |\n",
-                    camionesArreglo[i].id,
-                    localidadesArreglo[origen].nombre,
-                    localidadesArreglo[destino].nombre,
-                    tiempo_total);
+                       camionesArreglo[i].id,
+                       localidadesArreglo[origen].nombre,
+                       localidadesArreglo[destino].nombre,
+                       tiempo_total);
             }
         }
     }
@@ -581,17 +650,20 @@ void optimizar_y_asignar_rutas(int modo)
             camionesArreglo[i].ruta[0] = camionesArreglo[i].destino_id;
             camionesArreglo[i].total_ruta = 1;
 
-            if (distancia_total >= INF) {
+            if (distancia_total >= INF)
+            {
                 printf("|   #%2d   | %-13s -> %-13s |   RUTA NO DISP.  |\n",
-                    camionesArreglo[i].id,
-                    localidadesArreglo[origen].nombre,
-                    localidadesArreglo[destino].nombre);
-            } else {
+                       camionesArreglo[i].id,
+                       localidadesArreglo[origen].nombre,
+                       localidadesArreglo[destino].nombre);
+            }
+            else
+            {
                 printf("|   #%2d   | %-13s -> %-13s |   %6.1f km      |\n",
-                    camionesArreglo[i].id,
-                    localidadesArreglo[origen].nombre,
-                    localidadesArreglo[destino].nombre,
-                    distancia_total);
+                       camionesArreglo[i].id,
+                       localidadesArreglo[origen].nombre,
+                       localidadesArreglo[destino].nombre,
+                       distancia_total);
             }
         }
     }
@@ -645,53 +717,61 @@ void imprimir_arreglo(ProductoSeleccionado a[], int n)
 {
     for (int i = 0; i < n; i++)
     {
-        printf("Producto: %s | Cantidad: %d | Peso: %.2f | Volumen: %.2f\n",
+        printf("Producto: %s | Peso: %.2f | Volumen: %.2f\n",
                a[i].producto->nombre,
-               a[i].cantidad,
                a[i].peso_total,
                a[i].volumen_total);
     }
 }
 
-int hash_nombre(const char* nombre) {
+int hash_nombre(const char *nombre)
+{
     return (unsigned char)nombre[0] % HASH_SIZE;
 }
 
-int comparar_nombre(const void* a, const void* b) {
-    const ProductoSeleccionado* p1 = (const ProductoSeleccionado*)a;
-    const ProductoSeleccionado* p2 = (const ProductoSeleccionado*)b;
+int comparar_nombre(const void *a, const void *b)
+{
+    const ProductoSeleccionado *p1 = (const ProductoSeleccionado *)a;
+    const ProductoSeleccionado *p2 = (const ProductoSeleccionado *)b;
     return strcmp(p1->producto->nombre, p2->producto->nombre);
 }
 
-void hash_sort_asignados_nombre(ProductoSeleccionado asignados[], int total) {
+void hash_sort_asignados_nombre(ProductoSeleccionado asignados[], int total)
+{
     // Inicializar la tabla global
-    for (int i = 0; i < HASH_SIZE; i++) {
+    for (int i = 0; i < HASH_SIZE; i++)
+    {
         tablaHash[i] = NULL;
     }
 
     // Insertar en tabla hash
-    for (int i = 0; i < total; i++) {
+    for (int i = 0; i < total; i++)
+    {
         int idx = hash_nombre(asignados[i].producto->nombre);
-        NodoHash* nuevo = (NodoHash*)malloc(sizeof(NodoHash));
+        NodoHash *nuevo = (NodoHash *)malloc(sizeof(NodoHash));
         nuevo->prod = asignados[i];
         nuevo->sig = tablaHash[idx];
         tablaHash[idx] = nuevo;
     }
 
     // Mostrar elementos por orden lexicográfico por bucket
-    for (int i = 0; i < HASH_SIZE; i++) {
-        NodoHash* actual = tablaHash[i];
+    for (int i = 0; i < HASH_SIZE; i++)
+    {
+        NodoHash *actual = tablaHash[i];
         ProductoSeleccionado bucket[50];
         int count = 0;
 
-        while (actual && count < 50) {
+        while (actual && count < 50)
+        {
             bucket[count++] = actual->prod;
             actual = actual->sig;
         }
 
-        if (count > 0) {
+        if (count > 0)
+        {
             qsort(bucket, count, sizeof(ProductoSeleccionado), comparar_nombre);
-            for (int j = 0; j < count; j++) {
+            for (int j = 0; j < count; j++)
+            {
                 printf("Producto: %s | Cantidad: %d | Peso: %.2f | Volumen: %.2f\n",
                        bucket[j].producto->nombre,
                        bucket[j].cantidad,
@@ -702,11 +782,14 @@ void hash_sort_asignados_nombre(ProductoSeleccionado asignados[], int total) {
     }
 }
 
-void liberar_tabla_hash() {
-    for (int i = 0; i < HASH_SIZE; i++) {
-        NodoHash* actual = tablaHash[i];
-        while (actual) {
-            NodoHash* temp = actual;
+void liberar_tabla_hash()
+{
+    for (int i = 0; i < HASH_SIZE; i++)
+    {
+        NodoHash *actual = tablaHash[i];
+        while (actual)
+        {
+            NodoHash *temp = actual;
             actual = actual->sig;
             free(temp);
         }
@@ -714,12 +797,15 @@ void liberar_tabla_hash() {
     }
 }
 
-int particion_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto) {
+int particion_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto)
+{
     float pivote = a[alto].peso_total;
     int i = bajo - 1;
 
-    for (int j = bajo; j < alto; j++) {
-        if (a[j].peso_total <= pivote) {
+    for (int j = bajo; j < alto; j++)
+    {
+        if (a[j].peso_total <= pivote)
+        {
             i++;
             ProductoSeleccionado temp = a[i];
             a[i] = a[j];
@@ -734,29 +820,35 @@ int particion_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto) {
     return i + 1;
 }
 
-void quick_sort_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto) {
-    if (bajo < alto) {
+void quick_sort_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto)
+{
+    if (bajo < alto)
+    {
         int pi = particion_lomuto_peso(a, bajo, alto);
         quick_sort_lomuto_peso(a, bajo, pi - 1);
         quick_sort_lomuto_peso(a, pi + 1, alto);
     }
 }
 
-
-int obtener_max_volumen_entero(ProductoSeleccionado arr[], int n) {
+int obtener_max_volumen_entero(ProductoSeleccionado arr[], int n)
+{
     int max = (int)(arr[0].volumen_total * 100);
-    for (int i = 1; i < n; i++) {
+    for (int i = 1; i < n; i++)
+    {
         int val = (int)(arr[i].volumen_total * 100);
-        if (val > max) max = val;
+        if (val > max)
+            max = val;
     }
     return max;
 }
 
-void contar_por_digito_volumen(ProductoSeleccionado arr[], int n, int exp) {
+void contar_por_digito_volumen(ProductoSeleccionado arr[], int n, int exp)
+{
     ProductoSeleccionado salida[MAX_PRODUCTOS];
     int cuenta[10] = {0};
 
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
+    {
         int val = (int)(arr[i].volumen_total * 100);
         cuenta[(val / exp) % 10]++;
     }
@@ -764,7 +856,8 @@ void contar_por_digito_volumen(ProductoSeleccionado arr[], int n, int exp) {
     for (int i = 1; i < 10; i++)
         cuenta[i] += cuenta[i - 1];
 
-    for (int i = n - 1; i >= 0; i--) {
+    for (int i = n - 1; i >= 0; i--)
+    {
         int val = (int)(arr[i].volumen_total * 100);
         int idx = (val / exp) % 10;
         salida[--cuenta[idx]] = arr[i];
@@ -774,14 +867,15 @@ void contar_por_digito_volumen(ProductoSeleccionado arr[], int n, int exp) {
         arr[i] = salida[i];
 }
 
-void radix_sort_asignados_volumen(ProductoSeleccionado arr[], int n) {
-    if (n <= 1) return;
+void radix_sort_asignados_volumen(ProductoSeleccionado arr[], int n)
+{
+    if (n <= 1)
+        return;
 
     int max_val = obtener_max_volumen_entero(arr, n);
     for (int exp = 1; max_val / exp > 0; exp *= 10)
         contar_por_digito_volumen(arr, n, exp);
 }
-
 
 void submenu_ordenar_productos()
 {
@@ -806,14 +900,14 @@ void submenu_ordenar_productos()
             break;
         case 2:
 
-            if (no_totalSeleccionados <= 0)
+            if (total_no <= 0)
             {
                 printf("No hay productos no asignados para ordenar.\n");
                 break;
             }
             printf("Ordenando por peso (Aun no asignados)...\n");
-            mergeSort(0, no_totalSeleccionados - 1, no_seleccionados);
-            imprimir_arreglo(no_seleccionados, no_totalSeleccionados);
+            mergeSort(0, total_no - 1, no_seleccionados);
+            imprimir_arreglo(no_seleccionados, total_no);
             break;
 
         case 3:
@@ -821,44 +915,54 @@ void submenu_ordenar_productos()
             break;
         case 4:
 
-            if (totalSeleccionados <= 0) 
+            if (total_si <= 0)
             {
 
                 printf("No hay productos asignados para ordenar.\n");
                 break;
-
             }
             printf("Ordenando por nombre (asignados)...\n");
-            hash_sort_asignados_nombre(seleccionados, totalSeleccionados);
+            hash_sort_asignados_nombre(si_seleccionados, total_si);
             liberar_tabla_hash();
-             break;
+            break;
 
         case 5:
 
-            if (totalSeleccionados <= 0)
-             {
-
-            printf("No hay productos asignados para ordenar.\n");
-            break;
-
-             }
-             printf("Ordenando por peso (asignados)...\n");
-             quick_sort_lomuto_peso(seleccionados, 0, totalSeleccionados - 1);
-            imprimir_arreglo(seleccionados, totalSeleccionados);
-             break;
-
-        case 6:
-        
-            if (totalSeleccionados <= 0) 
+            if (total_si <= 0)
             {
 
-            printf("No hay productos asignados para ordenar.\n");
+                printf("No hay productos asignados para ordenar.\n");
+                break;
+            }
+            printf("Ordenando por peso (asignados)...\n");
+            quick_sort_lomuto_peso(si_seleccionados, 0, total_si - 1);
+            imprimir_arreglo(si_seleccionados, total_si);
             break;
 
+        case 6:
+
+            if (total_si <= 0)
+            {
+
+                printf("No hay productos asignados para ordenar.\n");
+                break;
             }
             printf("Ordenando por volumen (asignados)...\n");
-            radix_sort_asignados_volumen(seleccionados, totalSeleccionados);
-            imprimir_arreglo(seleccionados, totalSeleccionados);
+            radix_sort_asignados_volumen(si_seleccionados, total_si);
+            imprimir_arreglo(si_seleccionados, total_si);
+            break;
+
+        case 7:
+
+            if (total_si <= 0)
+            {
+
+                printf("No hay productos asignados .\n");
+                break;
+            }
+            printf("mostrar seleccionados...\n");
+
+            imprimir_arreglo(si_seleccionados, total_si);
             break;
 
         case 0:
