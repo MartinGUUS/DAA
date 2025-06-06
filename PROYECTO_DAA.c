@@ -883,6 +883,144 @@ void radix_sort_asignados_volumen(ProductoSeleccionado arr[], int n)
         contar_por_digito_volumen(arr, n, exp);
 }
 
+void counting_sort_volumen(ProductoSeleccionado arr[], int n)
+{
+    if (n <= 1)
+        return;
+
+    int max_val = (int)(arr[0].volumen_total * 100);
+    for (int i = 1; i < n; i++)
+    {
+        int val = (int)(arr[i].volumen_total * 100);
+        if (val > max_val)
+            max_val = val;
+    }
+
+    int count[max_val + 1];
+    for (int i = 0; i <= max_val; i++)
+        count[i] = 0;
+
+    for (int i = 0; i < n; i++)
+        count[(int)(arr[i].volumen_total * 100)]++;
+
+    for (int i = 1; i <= max_val; i++)
+        count[i] += count[i - 1];
+
+    ProductoSeleccionado salida[n];
+    for (int i = n - 1; i >= 0; i--)
+    {
+        salida[count[(int)(arr[i].volumen_total * 100)] - 1] = arr[i];
+        count[(int)(arr[i].volumen_total * 100)]--;
+    }
+
+    for (int i = 0; i < n; i++)
+        arr[i] = salida[i];
+}
+
+typedef struct
+{
+    ProductoSeleccionado *elementos; // Cambio: usar arreglo de ProductoSeleccionado
+    int capacidad;
+    int tamanio;
+} Heap;
+
+void init_heap(Heap *h, int capacidad)
+{
+    h->elementos = malloc(capacidad * sizeof(ProductoSeleccionado));
+    h->capacidad = capacidad;
+    h->tamanio = 0;
+}
+
+void swap_productos(ProductoSeleccionado *a, ProductoSeleccionado *b)
+{
+    ProductoSeleccionado temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+void heapify_nombres(Heap *h, int idx)
+{
+    int menor = idx;
+    int izq = 2 * idx + 1;
+    int der = 2 * idx + 2;
+
+    // Comparar nombres usando strcmp
+    if (izq < h->tamanio &&
+        strcmp(h->elementos[izq].producto->nombre,
+               h->elementos[menor].producto->nombre) < 0)
+        menor = izq;
+
+    if (der < h->tamanio &&
+        strcmp(h->elementos[der].producto->nombre,
+               h->elementos[menor].producto->nombre) < 0)
+        menor = der;
+
+    if (menor != idx)
+    {
+        swap_productos(&h->elementos[idx], &h->elementos[menor]);
+        heapify_nombres(h, menor);
+    }
+}
+
+void push_heap(Heap *h, ProductoSeleccionado producto)
+{
+    if (h->tamanio == h->capacidad)
+    {
+        printf("Heap lleno\n");
+        return;
+    }
+
+    // Insertar al final
+    int i = h->tamanio;
+    h->elementos[i] = producto;
+    h->tamanio++;
+
+    // Flotar el elemento si es necesario
+    while (i > 0 && strcmp(h->elementos[i].producto->nombre,
+                           h->elementos[(i - 1) / 2].producto->nombre) < 0)
+    {
+        swap_productos(&h->elementos[i], &h->elementos[(i - 1) / 2]);
+        i = (i - 1) / 2;
+    }
+}
+
+ProductoSeleccionado pop_heap(Heap *h)
+{
+    if (h->tamanio <= 0)
+    {
+        printf("Heap vacío\n");
+        ProductoSeleccionado vacio = {0};
+        return vacio;
+    }
+
+    ProductoSeleccionado raiz = h->elementos[0];
+    h->elementos[0] = h->elementos[h->tamanio - 1];
+    h->tamanio--;
+
+    heapify_nombres(h, 0);
+    return raiz;
+}
+
+void heap_sort_nombres(ProductoSeleccionado arr[], int n)
+{
+    // Crear y llenar el heap
+    Heap h;
+    init_heap(&h, n);
+
+    for (int i = 0; i < n; i++)
+    {
+        push_heap(&h, arr[i]);
+    }
+
+    // Extraer elementos en orden
+    for (int i = 0; i < n; i++)
+    {
+        arr[i] = pop_heap(&h);
+    }
+
+    free(h.elementos);
+}
+
 void submenu_ordenar_productos()
 {
     int opcion;
@@ -902,7 +1040,15 @@ void submenu_ordenar_productos()
         switch (opcion)
         {
         case 1:
+            if (total_no <= 0)
+            {
+                printf("No hay productos no asignados para ordenar.\n");
+                break;
+            }
             printf("Ordenando por nombre (Aun no asignados)...\n");
+            heap_sort_nombres(no_seleccionados, total_no);
+            printf("\nProductos ordenados por nombre:\n");
+            imprimir_arreglo(no_seleccionados, total_no);
             break;
         case 2:
 
@@ -917,7 +1063,15 @@ void submenu_ordenar_productos()
             break;
 
         case 3:
+
+            if (total_no <= 0)
+            {
+                printf("No hay productos no asignados para ordenar.\n");
+                break;
+            }
             printf("Ordenando por volumen (Aun no asignados)...\n");
+            counting_sort_volumen(no_seleccionados, total_no);
+            imprimir_arreglo(no_seleccionados, total_no);
             break;
         case 4:
 
