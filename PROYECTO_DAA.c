@@ -714,6 +714,36 @@ void liberar_tabla_hash() {
     }
 }
 
+int particion_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto) {
+    float pivote = a[alto].peso_total;
+    int i = bajo - 1;
+
+    for (int j = bajo; j < alto; j++) {
+        if (a[j].peso_total <= pivote) {
+            i++;
+            ProductoSeleccionado temp = a[i];
+            a[i] = a[j];
+            a[j] = temp;
+        }
+    }
+
+    ProductoSeleccionado temp = a[i + 1];
+    a[i + 1] = a[alto];
+    a[alto] = temp;
+
+    return i + 1;
+}
+
+void quick_sort_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto) {
+    if (bajo < alto) {
+        int pi = particion_lomuto_peso(a, bajo, alto);
+        quick_sort_lomuto_peso(a, bajo, pi - 1);
+        quick_sort_lomuto_peso(a, pi + 1, alto);
+    }
+}
+
+
+
 void submenu_ordenar_productos()
 {
     int opcion;
@@ -765,8 +795,19 @@ void submenu_ordenar_productos()
              break;
 
         case 5:
-            printf("Ordenando por peso...\n");
+        
+            if (totalSeleccionados <= 0)
+             {
+
+            printf("No hay productos asignados para ordenar.\n");
             break;
+
+             }
+             printf("Ordenando por peso (asignados)...\n");
+             quick_sort_lomuto_peso(seleccionados, 0, totalSeleccionados - 1);
+            imprimir_arreglo(seleccionados, totalSeleccionados);
+             break;
+
         case 6:
             printf("Ordenando por volumen...\n");
             break;
