@@ -42,8 +42,8 @@ typedef struct
 
 int total_no = 0;
 int total_si = 0;
-ProductoSeleccionado si_seleccionados[MAX_PRODUCTOS * 2];
-ProductoSeleccionado no_seleccionados[MAX_PRODUCTOS * 2];
+ProductoSeleccionado si_seleccionados[MAX_PRODUCTOS];
+ProductoSeleccionado no_seleccionados[MAX_PRODUCTOS];
 
 typedef struct
 {
@@ -233,6 +233,11 @@ void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, 
         no_seleccionados[total_no] = seleccionados[0];
         total_no++;
         printf("  TOTAL DE PRODUCTOS NO ASIGNADOS: %d\n", total_no);
+        printf("  Producto no asignado: %s | Cantidad: %d | Peso: %.2f | Volumen: %.2f\n",
+               seleccionados[0].producto->nombre,
+               seleccionados[0].cantidad,
+               seleccionados[0].peso_total,
+               seleccionados[0].volumen_total);
     }
     else
     {
@@ -399,7 +404,8 @@ void asignacion_optima_productos_camiones()
             free(dp.decisiones);
         }
     }
-    for (int i = 0; i < total_no; i++)
+
+    /*for (int i = 0; i < total_no; i++)
     {
         printf("\n==================================================\n");
         printf("Producto no asignado: %s | Cantidad: %d | Peso: %.2f | Volumen: %.2f\n",
@@ -407,7 +413,7 @@ void asignacion_optima_productos_camiones()
                no_seleccionados[i].cantidad,
                no_seleccionados[i].peso_total,
                no_seleccionados[i].volumen_total);
-    }
+    }*/
 }
 
 float matriz_tiempo[MAX_LOCALIDADES][MAX_LOCALIDADES];
