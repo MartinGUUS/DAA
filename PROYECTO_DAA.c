@@ -12,6 +12,7 @@
 #define MAX_CLIENTES 10
 #define MAX_CONEXIONES 30
 #define INF INT_MAX
+#define HASH_SIZE 128
 
 typedef struct
 {
@@ -98,6 +99,13 @@ typedef struct
 } Conexion;
 
 Conexion conexionesArreglo[MAX_CONEXIONES];
+
+typedef struct NodoHash {
+    ProductoSeleccionado prod;
+    struct NodoHash* sig;
+} NodoHash;
+
+NodoHash* tablaHash[HASH_SIZE]; 
 
 void precargarDatos()
 {
@@ -645,6 +653,67 @@ void imprimir_arreglo(ProductoSeleccionado a[], int n)
     }
 }
 
+int hash_nombre(const char* nombre) {
+    return (unsigned char)nombre[0] % HASH_SIZE;
+}
+
+int comparar_nombre(const void* a, const void* b) {
+    const ProductoSeleccionado* p1 = (const ProductoSeleccionado*)a;
+    const ProductoSeleccionado* p2 = (const ProductoSeleccionado*)b;
+    return strcmp(p1->producto->nombre, p2->producto->nombre);
+}
+
+void hash_sort_asignados_nombre(ProductoSeleccionado asignados[], int total) {
+    // Inicializar la tabla global
+    for (int i = 0; i < HASH_SIZE; i++) {
+        tablaHash[i] = NULL;
+    }
+
+    // Insertar en tabla hash
+    for (int i = 0; i < total; i++) {
+        int idx = hash_nombre(asignados[i].producto->nombre);
+        NodoHash* nuevo = (NodoHash*)malloc(sizeof(NodoHash));
+        nuevo->prod = asignados[i];
+        nuevo->sig = tablaHash[idx];
+        tablaHash[idx] = nuevo;
+    }
+
+    // Mostrar elementos por orden lexicográfico por bucket
+    for (int i = 0; i < HASH_SIZE; i++) {
+        NodoHash* actual = tablaHash[i];
+        ProductoSeleccionado bucket[50];
+        int count = 0;
+
+        while (actual && count < 50) {
+            bucket[count++] = actual->prod;
+            actual = actual->sig;
+        }
+
+        if (count > 0) {
+            qsort(bucket, count, sizeof(ProductoSeleccionado), comparar_nombre);
+            for (int j = 0; j < count; j++) {
+                printf("Producto: %s | Cantidad: %d | Peso: %.2f | Volumen: %.2f\n",
+                       bucket[j].producto->nombre,
+                       bucket[j].cantidad,
+                       bucket[j].peso_total,
+                       bucket[j].volumen_total);
+            }
+        }
+    }
+}
+
+void liberar_tabla_hash() {
+    for (int i = 0; i < HASH_SIZE; i++) {
+        NodoHash* actual = tablaHash[i];
+        while (actual) {
+            NodoHash* temp = actual;
+            actual = actual->sig;
+            free(temp);
+        }
+        tablaHash[i] = NULL;
+    }
+}
+
 void submenu_ordenar_productos()
 {
     int opcion;
@@ -682,8 +751,19 @@ void submenu_ordenar_productos()
             printf("Ordenando por volumen (Aun no asignados)...\n");
             break;
         case 4:
-            printf("Ordenando por nombre...\n");
-            break;
+
+            if (totalSeleccionados <= 0) 
+            {
+
+                printf("No hay productos asignados para ordenar.\n");
+                break;
+
+            }
+            printf("Ordenando por nombre (asignados)...\n");
+            hash_sort_asignados_nombre(seleccionados, totalSeleccionados);
+            liberar_tabla_hash();
+             break;
+
         case 5:
             printf("Ordenando por peso...\n");
             break;
