@@ -231,9 +231,6 @@ void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, 
 
     if (deci == 0 && totalSeleccionados > 0)
     {
-        // printf("  No se asignaron productos.\n");
-        no_seleccionados[total_no] = seleccionados[0];
-        total_no++;
         printf("  TOTAL DE PRODUCTOS NO ASIGNADOS: %d\n", total_no);
         printf("  Producto no asignado: %s | Cantidad: %d | Peso: %.2f | Volumen: %.2f\n",
                seleccionados[0].producto->nombre,
@@ -241,14 +238,11 @@ void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, 
                seleccionados[0].peso_total,
                seleccionados[0].volumen_total);
     }
-    else
+    else if (deci == 1 && totalSeleccionados > 0)
     {
-
         float acumulado = 0;
         for (int k = 0; k < totalSeleccionados; k++)
         {
-            si_seleccionados[total_si + k] = seleccionados[k];
-
             acumulado += seleccionados[k].valor_total;
             printf("  - %s  | Valor: %.2f | Peso: %.2f | Volumen: %.2f\n",
                    seleccionados[k].producto->nombre,
@@ -257,10 +251,15 @@ void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, 
                    seleccionados[k].volumen_total);
         }
         printf("  VALOR TOTAL ACUMULADO DE: %.2f\n", acumulado);
-        total_si += totalSeleccionados;
         printf("  TOTAL DE PRODUCTOS ASIGNADOS: %d\n", total_si);
     }
+    else
+    {
+        // Caso donde no hay productos para procesar
+        printf("  No hay productos para procesar en esta localidad.\n");
+    }
 }
+
 
 void liberar_tabla_memoizacion(float ***tabla, int n, int pesoMax)
 {
@@ -344,14 +343,14 @@ void asignacion_optima_productos_camiones()
 
             // Inicializar tabla
             float ***tabla = malloc(n * sizeof(float **));
-            for (int i = 0; i < n; i++)
+            for (int k = 0; k < n; k++)
             {
-                tabla[i] = malloc((pesoMax + 1) * sizeof(float *));
+                tabla[k] = malloc((pesoMax + 1) * sizeof(float *));
                 for (int w = 0; w <= pesoMax; w++)
                 {
-                    tabla[i][w] = malloc((volumenMax + 1) * sizeof(float));
+                    tabla[k][w] = malloc((volumenMax + 1) * sizeof(float));
                     for (int v = 0; v <= volumenMax; v++)
-                        tabla[i][w][v] = -1.0f;
+                        tabla[k][w][v] = -1.0f;
                 }
             }
 
@@ -362,18 +361,18 @@ void asignacion_optima_productos_camiones()
             // Resolver problema
             resolver_top_down(localidad->pedidos, n - 1, pesoMax, volumenMax, tabla, &dp);
 
-            // Reiniciar contadores
+            // Reiniciar contadores locales
             totalSeleccionados = 0;
             no_totalSeleccionados = 0;
-            int deci = 0;
+            
             // Reconstruir solución
             for (int k = 0; k < n; k++)
             {
                 Pedido actual = localidad->pedidos[k];
                 int cantidad = actual.cantidad;
                 float valor = actual.producto->precio * cantidad;
-                int peso = (int)(actual.producto->peso * cantidad);
-                int volumen = (int)(actual.producto->volumen * cantidad);
+                float peso = actual.producto->peso * cantidad;
+                float volumen = actual.producto->volumen * cantidad;
 
                 if (dp.decisiones[k])
                 {
@@ -384,7 +383,6 @@ void asignacion_optima_productos_camiones()
                     seleccionados[totalSeleccionados].peso_total = peso;
                     seleccionados[totalSeleccionados].volumen_total = volumen;
                     totalSeleccionados++;
-                    deci = 1;
                 }
                 else
                 {
@@ -395,27 +393,39 @@ void asignacion_optima_productos_camiones()
                     seleccionados_no[no_totalSeleccionados].peso_total = peso;
                     seleccionados_no[no_totalSeleccionados].volumen_total = volumen;
                     no_totalSeleccionados++;
-                    deci = 0;
                 }
             }
 
-            // Imprimir resultados y liberar memoria
-            imprimir_resultados_productos(camion->id, localidad->nombre,
-                                          seleccionados, totalSeleccionados, deci);
+            // Determinar si se asignaron productos
+            int deci = (totalSeleccionados > 0) ? 1 : 0;
+
+            // Imprimir resultados
+            if (deci == 0 && no_totalSeleccionados > 0)
+            {
+                // Solo agregar UN producto no seleccionado por localidad
+                no_seleccionados[total_no] = seleccionados_no[0];
+                total_no++;
+                imprimir_resultados_productos(camion->id, localidad->nombre,
+                                              &seleccionados_no[0], 1, 0);
+            }
+            else if (deci == 1)
+            {
+                // Agregar productos seleccionados al arreglo global
+                for (int k = 0; k < totalSeleccionados; k++)
+                {
+                    si_seleccionados[total_si + k] = seleccionados[k];
+                }
+                total_si += totalSeleccionados;
+                
+                imprimir_resultados_productos(camion->id, localidad->nombre,
+                                              seleccionados, totalSeleccionados, 1);
+            }
+
+            // Liberar memoria
             liberar_tabla_memoizacion(tabla, n, pesoMax);
             free(dp.decisiones);
         }
     }
-
-    /*for (int i = 0; i < total_no; i++)
-    {
-        printf("\n==================================================\n");
-        printf("Producto no asignado: %s | Cantidad: %d | Peso: %.2f | Volumen: %.2f\n",
-               no_seleccionados[i].producto->nombre,
-               no_seleccionados[i].cantidad,
-               no_seleccionados[i].peso_total,
-               no_seleccionados[i].volumen_total);
-    }*/
 }
 
 float matriz_tiempo[MAX_LOCALIDADES][MAX_LOCALIDADES];
