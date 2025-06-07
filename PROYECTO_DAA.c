@@ -512,7 +512,7 @@ void intercambiar(NodoHeap *a, NodoHeap *b)
     *b = temp;
 }
 
-void heapify_arriba(NodoHeap heap[], int idx)
+void heap_arriba(NodoHeap heap[], int idx)
 {
     while (idx > 0)
     {
@@ -527,7 +527,7 @@ void heapify_arriba(NodoHeap heap[], int idx)
     }
 }
 
-void heapify_abajo(NodoHeap heap[], int size, int idx)
+void heap_abajo(NodoHeap heap[], int size, int idx)
 {
     while (1)
     {
@@ -554,7 +554,7 @@ void insertar_heap(NodoHeap heap[], int *size, int nodo, float dist)
 {
     heap[*size].nodo = nodo;
     heap[*size].distancia = dist;
-    heapify_arriba(heap, *size);
+    heap_arriba(heap, *size);
     (*size)++;
 }
 
@@ -562,7 +562,7 @@ NodoHeap extraer_min(NodoHeap heap[], int *size)
 {
     NodoHeap min = heap[0];
     heap[0] = heap[--(*size)];
-    heapify_abajo(heap, *size, 0);
+    heap_abajo(heap, *size, 0);
     return min;
 }
 
@@ -720,13 +720,13 @@ void merge(int left, int centro, int right, ProductoSeleccionado a[])
     free(temp);
 }
 
-void mergeSort(int left, int right, ProductoSeleccionado a[])
+void merge_sort_peso(int left, int right, ProductoSeleccionado a[])
 {
     if (left < right)
     {
         int centro = (left + right) / 2;
-        mergeSort(left, centro, a);
-        mergeSort(centro + 1, right, a);
+        merge_sort_peso(left, centro, a);
+        merge_sort_peso(centro + 1, right, a);
         merge(left, centro, right, a);
     }
 }
@@ -936,7 +936,7 @@ typedef struct
     int tamanio;
 } Heap;
 
-void init_heap(Heap *h, int capacidad)
+void ini_heap_sort(Heap *h, int capacidad)
 {
     h->elementos = malloc(capacidad * sizeof(ProductoSeleccionado));
     h->capacidad = capacidad;
@@ -950,7 +950,7 @@ void swap_productos(ProductoSeleccionado *a, ProductoSeleccionado *b)
     *b = temp;
 }
 
-void heapify_nombres(Heap *h, int idx)
+void heap_nombres(Heap *h, int idx)
 {
     int menor = idx;
     int izq = 2 * idx + 1;
@@ -970,7 +970,7 @@ void heapify_nombres(Heap *h, int idx)
     if (menor != idx)
     {
         swap_productos(&h->elementos[idx], &h->elementos[menor]);
-        heapify_nombres(h, menor);
+        heap_nombres(h, menor);
     }
 }
 
@@ -1009,7 +1009,7 @@ ProductoSeleccionado pop_heap(Heap *h)
     h->elementos[0] = h->elementos[h->tamanio - 1];
     h->tamanio--;
 
-    heapify_nombres(h, 0);
+    heap_nombres(h, 0);
     return raiz;
 }
 
@@ -1017,7 +1017,7 @@ void heap_sort_nombres(ProductoSeleccionado arr[], int n)
 {
     // Crear y llenar el heap
     Heap h;
-    init_heap(&h, n);
+    ini_heap_sort(&h, n);
 
     for (int i = 0; i < n; i++)
     {
@@ -1112,7 +1112,7 @@ void submenu_ordenar_productos()
                 break;
             }
             printf("Ordenando por peso (Aun no asignados)...\n");
-            mergeSort(0, total_no - 1, no_seleccionados);
+            merge_sort_peso(0, total_no - 1, no_seleccionados);
             imprimir_arreglo(no_seleccionados, total_no);
             break;
 
