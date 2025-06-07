@@ -13,7 +13,7 @@
 #define MAX_CONEXIONES 30
 #define INF INT_MAX
 #define HASH_SIZE 128
-#define ALFABETO 128
+
 
 typedef struct
 {
@@ -115,14 +115,6 @@ typedef struct NodoHash
 
 NodoHash *tablaHash[HASH_SIZE];
 
-
-typedef struct NodoTrie {
-    struct NodoTrie *hijos[128]; // ASCII
-    Producto *producto;          // puntero al producto original
-    bool esFin;
-} NodoTrie;
-
-NodoTrie *trieProductos = NULL;
 
 void precargarDatos()
 {
@@ -1031,54 +1023,40 @@ void heap_sort_nombres(ProductoSeleccionado arr[], int n)
     free(h.elementos);
 }
 
-NodoTrie *crearNodoTrie() {
-    NodoTrie *nuevo = (NodoTrie *)malloc(sizeof(NodoTrie));
-    for (int i = 0; i < 128; i++)
-        nuevo->hijos[i] = NULL;
-    nuevo->esFin = false;
-    nuevo->producto = NULL;
-    return nuevo;
+int comparar_nombre_producto(const void *a, const void *b) {
+    const Producto *p1 = (const Producto *)a;
+    const Producto *p2 = (const Producto *)b;
+    return strcmp(p1->nombre, p2->nombre);
 }
 
-void insertarProductoEnTrie(NodoTrie *raiz, Producto *producto) {
-    NodoTrie *actual = raiz;
-    for (int i = 0; producto->nombre[i] != '\0'; i++) {
-        unsigned char c = (unsigned char)producto->nombre[i];
-        if (actual->hijos[c] == NULL)
-            actual->hijos[c] = crearNodoTrie();
-        actual = actual->hijos[c];
-    }
-    actual->esFin = true;
-    actual->producto = producto;
+void ordenar_productos_por_nombre() {
+    qsort(productosArreglo, MAX_PRODUCTOS, sizeof(Producto), comparar_nombre_producto);
 }
 
-Producto *buscarProducto(NodoTrie *raiz, const char *nombre) {
-    NodoTrie *actual = raiz;
-    for (int i = 0; nombre[i] != '\0'; i++) {
-        unsigned char c = (unsigned char)nombre[i];
-        if (actual->hijos[c] == NULL)
-            return NULL;
-        actual = actual->hijos[c];
-    }
-    return actual->esFin ? actual->producto : NULL;
-}
+Producto *buscar_producto_binario(Producto productos[], int izquierda, int derecha, const char *nombre) {
+    if (izquierda > derecha)
+        return NULL;
 
-void inicializarTrieProductos() {
-    trieProductos = crearNodoTrie();
-    for (int i = 0; i < MAX_PRODUCTOS; i++) {
-        insertarProductoEnTrie(trieProductos, &productosArreglo[i]);
-    }
+    int medio = (izquierda + derecha) / 2;
+    int cmp = strcmp(nombre, productos[medio].nombre);
+
+    if (cmp == 0)
+        return &productos[medio];
+    else if (cmp < 0)
+        return buscar_producto_binario(productos, izquierda, medio - 1, nombre);
+    else
+        return buscar_producto_binario(productos, medio + 1, derecha, nombre);
 }
 
 void buscar_producto_por_nombre() {
     char nombre[50];
     printf("\n=== BUSQUEDA DE PRODUCTO POR NOMBRE ===\n");
-    printf("Ingresa el nombre exacto del producto (ej. Producto 35): ");
+    printf("Ingresa el nombre exacto del producto (ejemplo. Producto 10): ");
     scanf(" %[^\n]", nombre);
 
-    Producto *encontrado = buscarProducto(trieProductos, nombre);
+    Producto *encontrado = buscar_producto_binario(productosArreglo, 0, MAX_PRODUCTOS - 1, nombre);
     if (encontrado) {
-        printf("\n✔ Producto encontrado:\n");
+        printf("\n Producto encontrado:\n");
         printf("  Nombre: %s\n", encontrado->nombre);
         printf("  Precio: %.2f | Peso: %.2f | Volumen: %.2f\n",
                encontrado->precio, encontrado->peso, encontrado->volumen);
@@ -1244,7 +1222,7 @@ void menuPrincipal()
 int main()
 {
     precargarDatos();
-    inicializarTrieProductos();
+    ordenar_productos_por_nombre();
     menuPrincipal();
 
     return 0;
