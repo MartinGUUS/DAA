@@ -1220,6 +1220,7 @@ void submenu_ordenar_productos()
         printf("4. Ordenar por nombre \n");
         printf("5. Ordenar por peso \n");
         printf("6. Ordenar por volumen \n");
+        printf("7. Mostrar productos asignados \n");
         printf("0. Atras\n");
         printf("Selecciona una opcion: ");
         scanf("%d", &opcion);
