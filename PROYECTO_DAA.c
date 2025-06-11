@@ -6,6 +6,7 @@
 #include <math.h>
 #include <limits.h>
 
+// ==== CONSTANTES ====
 #define MAX_PRODUCTOS 100
 #define MAX_LOCALIDADES 20
 #define MAX_CAMIONES 5
@@ -14,7 +15,7 @@
 #define INF INT_MAX
 #define HASH_SIZE 128
 
-
+// ==== TIPOS DE DATOS ====
 typedef struct
 {
     int id;
@@ -23,8 +24,6 @@ typedef struct
     float peso;
     float volumen;
 } Producto;
-
-Producto productosArreglo[MAX_PRODUCTOS];
 
 typedef struct
 {
@@ -41,11 +40,6 @@ typedef struct
     float volumen_total;
 } ProductoSeleccionado;
 
-int total_no = 0;
-int total_si = 0;
-ProductoSeleccionado si_seleccionados[MAX_PRODUCTOS];
-ProductoSeleccionado no_seleccionados[MAX_PRODUCTOS];
-
 typedef struct
 {
     int id;
@@ -55,8 +49,6 @@ typedef struct
     Pedido pedidos[MAX_PRODUCTOS];
     int total_pedidos;
 } Localidad;
-
-Localidad localidadesArreglo[MAX_LOCALIDADES];
 
 typedef enum
 {
@@ -74,16 +66,14 @@ typedef struct
 typedef struct
 {
     int id;
-    float capacidadCarga;   // kg
-    float capacidadVolumen; // m cubicos
+    float capacidadCarga;
+    float capacidadVolumen;
     EstadoCamion estado;
-    int ruta[MAX_LOCALIDADES]; // id de localidades
+    int ruta[MAX_LOCALIDADES];
     int total_ruta;
     int origen_id;
     int destino_id;
 } Camion;
-
-Camion camionesArreglo[MAX_CAMIONES];
 
 typedef struct
 {
@@ -94,18 +84,14 @@ typedef struct
     int total_pedidos;
 } Cliente;
 
-Cliente clientesArreglo[MAX_CLIENTES];
-
 typedef struct
 {
     int origen_id;
     int destino_id;
     float distancia_km;
     float tiempo_min;
-    float penalizacion_trafico; // en minutos
+    float penalizacion_trafico;
 } Conexion;
-
-Conexion conexionesArreglo[MAX_CONEXIONES];
 
 typedef struct NodoHash
 {
@@ -113,9 +99,23 @@ typedef struct NodoHash
     struct NodoHash *sig;
 } NodoHash;
 
+// ==== VARIABLES GLOBALES ====
+Producto productosArreglo[MAX_PRODUCTOS];
+Localidad localidadesArreglo[MAX_LOCALIDADES];
+Camion camionesArreglo[MAX_CAMIONES];
+Cliente clientesArreglo[MAX_CLIENTES];
+Conexion conexionesArreglo[MAX_CONEXIONES];
 NodoHash *tablaHash[HASH_SIZE];
 
+int total_no = 0;
+int total_si = 0;
+ProductoSeleccionado si_seleccionados[MAX_PRODUCTOS];
+ProductoSeleccionado no_seleccionados[MAX_PRODUCTOS];
 
+// --------------------------------------------------------
+// precargarDatos: Inicializa y precarga datos aleatorios en los arreglos de productos, localidades, camiones, clientes y conexiones.
+// Su función es dejar listas las estructuras de datos principales para el sistema.
+// --------------------------------------------------------
 void precargarDatos()
 {
     srand(time(NULL));
@@ -225,6 +225,10 @@ void precargarDatos()
     }
 }
 
+// --------------------------------------------------------
+// imprimir_resultados_productos: Muestra en pantalla los productos asignados o no asignados a un camión para una localidad específica.
+// Sirve para reportar visualmente el resultado de la asignación óptima.
+// --------------------------------------------------------
 void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, ProductoSeleccionado *seleccionados, int totalSeleccionados, int deci)
 {
     printf("\nCamion #%d que va a la Localidad \"%s\":\n", id_camion, nombre_localidad);
@@ -260,7 +264,10 @@ void imprimir_resultados_productos(int id_camion, const char *nombre_localidad, 
     }
 }
 
-
+// --------------------------------------------------------
+// liberar_tabla_memoizacion: Libera la memoria de la tabla de memoización tridimensional utilizada en programación dinámica.
+// Su función es evitar fugas de memoria tras el uso de la tabla.
+// --------------------------------------------------------
 void liberar_tabla_memoizacion(float ***tabla, int n, int pesoMax)
 {
     for (int i = 0; i < n; i++)
@@ -279,6 +286,10 @@ typedef struct
     bool *decisiones;
 } DecisionProductos;
 
+// --------------------------------------------------------
+// resolver_top_down: Resuelve el problema de asignación óptima de productos mediante programación dinámica con memoización.
+// Calcula el valor máximo de productos que se pueden llevar en un camión respetando peso y volumen.
+// --------------------------------------------------------
 float resolver_top_down(Pedido *pedidos, int i, int peso_restante, int volumen_restante,
                         float ***tabla, DecisionProductos *dp)
 {
@@ -323,6 +334,10 @@ ProductoSeleccionado seleccionados_no[MAX_PRODUCTOS];
 ProductoSeleccionado seleccionados[MAX_PRODUCTOS];
 int totalSeleccionados = 0;
 
+// --------------------------------------------------------
+// asignacion_optima_productos_camiones: Realiza la asignación óptima de productos a cada camión usando programación dinámica.
+// Su función es determinar qué productos van en qué camión considerando restricciones de peso y volumen.
+// --------------------------------------------------------
 void asignacion_optima_productos_camiones()
 {
     for (int i = 0; i < MAX_CAMIONES; i++)
@@ -364,7 +379,7 @@ void asignacion_optima_productos_camiones()
             // Reiniciar contadores locales
             totalSeleccionados = 0;
             no_totalSeleccionados = 0;
-            
+
             // Reconstruir solución
             for (int k = 0; k < n; k++)
             {
@@ -416,7 +431,7 @@ void asignacion_optima_productos_camiones()
                     si_seleccionados[total_si + k] = seleccionados[k];
                 }
                 total_si += totalSeleccionados;
-                
+
                 imprimir_resultados_productos(camion->id, localidad->nombre,
                                               seleccionados, totalSeleccionados, 1);
             }
@@ -431,6 +446,10 @@ void asignacion_optima_productos_camiones()
 float matriz_tiempo[MAX_LOCALIDADES][MAX_LOCALIDADES];
 float matriz_distancia[MAX_LOCALIDADES][MAX_LOCALIDADES];
 
+// --------------------------------------------------------
+// inicializar_matrices_rutas: Inicializa las matrices de tiempo y distancia entre localidades con valores por defecto y datos de conexiones.
+// Es la base para los algoritmos de rutas.
+// --------------------------------------------------------
 void inicializar_matrices_rutas()
 {
     for (int i = 0; i < MAX_LOCALIDADES; i++)
@@ -456,6 +475,10 @@ void inicializar_matrices_rutas()
     }
 }
 
+// --------------------------------------------------------
+// dijkstra_tiempo: Calcula los caminos mínimos en tiempo desde un origen a todas las localidades usando el algoritmo de Dijkstra.
+// Su función es encontrar la ruta más rápida entre localidades.
+// --------------------------------------------------------
 void dijkstra_tiempo(int origen, float resultado[MAX_LOCALIDADES])
 {
     bool visitado[MAX_LOCALIDADES] = {false};
@@ -492,6 +515,10 @@ void dijkstra_tiempo(int origen, float resultado[MAX_LOCALIDADES])
     }
 }
 
+// --------------------------------------------------------
+// floyd_distancia: Calcula todas las distancias mínimas entre pares de localidades usando el algoritmo de Floyd-Warshall.
+// Sirve para encontrar rutas más cortas en distancia.
+// --------------------------------------------------------
 void floyd_distancia(float resultado[MAX_LOCALIDADES][MAX_LOCALIDADES])
 {
     for (int i = 0; i < MAX_LOCALIDADES; i++)
@@ -505,6 +532,9 @@ void floyd_distancia(float resultado[MAX_LOCALIDADES][MAX_LOCALIDADES])
                     resultado[i][j] = resultado[i][k] + resultado[k][j];
 }
 
+// --------------------------------------------------------
+// intercambiar: Intercambia dos nodos en un heap. Función auxiliar para manipular heaps.
+// --------------------------------------------------------
 void intercambiar(NodoHeap *a, NodoHeap *b)
 {
     NodoHeap temp = *a;
@@ -512,6 +542,10 @@ void intercambiar(NodoHeap *a, NodoHeap *b)
     *b = temp;
 }
 
+// --------------------------------------------------------
+// heap_arriba: Sube un elemento en el heap hasta que se cumpla la propiedad del heap (min-heap).
+// Usado en inserciones en estructuras de prioridad.
+// --------------------------------------------------------
 void heap_arriba(NodoHeap heap[], int idx)
 {
     while (idx > 0)
@@ -527,6 +561,10 @@ void heap_arriba(NodoHeap heap[], int idx)
     }
 }
 
+// --------------------------------------------------------
+// heap_abajo: Baja un elemento en el heap hasta que se restaure la propiedad del heap (min-heap).
+// Usado en extracciones del heap de prioridad.
+// --------------------------------------------------------
 void heap_abajo(NodoHeap heap[], int size, int idx)
 {
     while (1)
@@ -550,6 +588,9 @@ void heap_abajo(NodoHeap heap[], int size, int idx)
     }
 }
 
+// --------------------------------------------------------
+// insertar_heap: Inserta un nodo en el heap y ajusta la estructura para mantener la propiedad de min-heap.
+// --------------------------------------------------------
 void insertar_heap(NodoHeap heap[], int *size, int nodo, float dist)
 {
     heap[*size].nodo = nodo;
@@ -558,6 +599,10 @@ void insertar_heap(NodoHeap heap[], int *size, int nodo, float dist)
     (*size)++;
 }
 
+// --------------------------------------------------------
+// extraer_min: Extrae y retorna el nodo de menor valor del heap (raíz).
+// Usado en algoritmos de prioridad como Dijkstra.
+// --------------------------------------------------------
 NodoHeap extraer_min(NodoHeap heap[], int *size)
 {
     NodoHeap min = heap[0];
@@ -566,6 +611,10 @@ NodoHeap extraer_min(NodoHeap heap[], int *size)
     return min;
 }
 
+// --------------------------------------------------------
+// optimizar_y_asignar_rutas: Optimiza y asigna rutas para camiones según modo (tiempo o distancia).
+// Ejecuta los algoritmos de caminos mínimos y muestra el resultado.
+// --------------------------------------------------------
 void optimizar_y_asignar_rutas(int modo)
 {
     inicializar_matrices_rutas();
@@ -693,6 +742,10 @@ void optimizar_y_asignar_rutas(int modo)
     printf("--------------------------------------------------------------\n");
 }
 
+// --------------------------------------------------------
+// merge: Fusiona dos subarreglos ordenados de ProductoSeleccionado por peso.
+// Es función auxiliar para merge sort por peso.
+// --------------------------------------------------------
 void merge(int left, int centro, int right, ProductoSeleccionado a[])
 {
     int tam = right - left + 1;
@@ -720,6 +773,9 @@ void merge(int left, int centro, int right, ProductoSeleccionado a[])
     free(temp);
 }
 
+// --------------------------------------------------------
+// merge_sort_peso: Ordena un arreglo de ProductoSeleccionado por peso total usando el algoritmo Merge Sort.
+// --------------------------------------------------------
 void merge_sort_peso(int left, int right, ProductoSeleccionado a[])
 {
     if (left < right)
@@ -731,6 +787,10 @@ void merge_sort_peso(int left, int right, ProductoSeleccionado a[])
     }
 }
 
+// --------------------------------------------------------
+// imprimir_arreglo: Imprime todos los productos seleccionados de un arreglo.
+// Útil para mostrar listas ordenadas de productos.
+// --------------------------------------------------------
 void imprimir_arreglo(ProductoSeleccionado a[], int n)
 {
     for (int i = 0; i < n; i++)
@@ -742,11 +802,17 @@ void imprimir_arreglo(ProductoSeleccionado a[], int n)
     }
 }
 
+// --------------------------------------------------------
+// hash_nombre: Calcula el hash de un nombre de producto para ubicarlo en la tabla hash.
+// --------------------------------------------------------
 int hash_nombre(const char *nombre)
 {
     return (unsigned char)nombre[0] % HASH_SIZE;
 }
 
+// --------------------------------------------------------
+// comparar_nombre: Función de comparación para ordenar productos por nombre (lexicográfico).
+// --------------------------------------------------------
 int comparar_nombre(const void *a, const void *b)
 {
     const ProductoSeleccionado *p1 = (const ProductoSeleccionado *)a;
@@ -754,6 +820,10 @@ int comparar_nombre(const void *a, const void *b)
     return strcmp(p1->producto->nombre, p2->producto->nombre);
 }
 
+// --------------------------------------------------------
+// hash_sort_asignados_nombre: Ordena los productos asignados por nombre usando hash y quicksort por bucket.
+// Imprime los productos ordenados por nombre.
+// --------------------------------------------------------
 void hash_sort_asignados_nombre(ProductoSeleccionado asignados[], int total)
 {
     // Inicializar la tabla global
@@ -800,6 +870,9 @@ void hash_sort_asignados_nombre(ProductoSeleccionado asignados[], int total)
     }
 }
 
+// --------------------------------------------------------
+// liberar_tabla_hash: Libera toda la memoria ocupada por la tabla hash de productos asignados.
+// --------------------------------------------------------
 void liberar_tabla_hash()
 {
     for (int i = 0; i < HASH_SIZE; i++)
@@ -815,6 +888,10 @@ void liberar_tabla_hash()
     }
 }
 
+// --------------------------------------------------------
+// particion_lomuto_peso: Realiza la partición de un arreglo usando el esquema Lomuto por peso total.
+// Función auxiliar para quick sort.
+// --------------------------------------------------------
 int particion_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto)
 {
     float pivote = a[alto].peso_total;
@@ -838,6 +915,9 @@ int particion_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto)
     return i + 1;
 }
 
+// --------------------------------------------------------
+// quick_sort_lomuto_peso: Ordena un arreglo de ProductoSeleccionado por peso total usando quick sort con partición Lomuto.
+// --------------------------------------------------------
 void quick_sort_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto)
 {
     if (bajo < alto)
@@ -848,6 +928,9 @@ void quick_sort_lomuto_peso(ProductoSeleccionado a[], int bajo, int alto)
     }
 }
 
+// --------------------------------------------------------
+// obtener_max_volumen_entero: Obtiene el valor máximo de volumen (como entero) de un arreglo de productos seleccionados.
+// --------------------------------------------------------
 int obtener_max_volumen_entero(ProductoSeleccionado arr[], int n)
 {
     int max = (int)(arr[0].volumen_total * 100);
@@ -860,6 +943,9 @@ int obtener_max_volumen_entero(ProductoSeleccionado arr[], int n)
     return max;
 }
 
+// --------------------------------------------------------
+// contar_por_digito_volumen: Realiza el conteo de dígitos para radix/counting sort por volumen total.
+// --------------------------------------------------------
 void contar_por_digito_volumen(ProductoSeleccionado arr[], int n, int exp)
 {
     ProductoSeleccionado salida[MAX_PRODUCTOS];
@@ -885,6 +971,9 @@ void contar_por_digito_volumen(ProductoSeleccionado arr[], int n, int exp)
         arr[i] = salida[i];
 }
 
+// --------------------------------------------------------
+// radix_sort_asignados_volumen: Ordena productos seleccionados por volumen usando el algoritmo Radix Sort.
+// --------------------------------------------------------
 void radix_sort_asignados_volumen(ProductoSeleccionado arr[], int n)
 {
     if (n <= 1)
@@ -895,6 +984,9 @@ void radix_sort_asignados_volumen(ProductoSeleccionado arr[], int n)
         contar_por_digito_volumen(arr, n, exp);
 }
 
+// --------------------------------------------------------
+// counting_sort_volumen: Ordena productos seleccionados por volumen usando el algoritmo Counting Sort.
+// --------------------------------------------------------
 void counting_sort_volumen(ProductoSeleccionado arr[], int n)
 {
     if (n <= 1)
@@ -936,6 +1028,9 @@ typedef struct
     int tamanio;
 } Heap;
 
+// --------------------------------------------------------
+// ini_heap_sort: Inicializa una estructura heap para heap sort.
+// --------------------------------------------------------
 void ini_heap_sort(Heap *h, int capacidad)
 {
     h->elementos = malloc(capacidad * sizeof(ProductoSeleccionado));
@@ -943,6 +1038,9 @@ void ini_heap_sort(Heap *h, int capacidad)
     h->tamanio = 0;
 }
 
+// --------------------------------------------------------
+// swap_productos: Intercambia dos productos seleccionados.
+// --------------------------------------------------------
 void swap_productos(ProductoSeleccionado *a, ProductoSeleccionado *b)
 {
     ProductoSeleccionado temp = *a;
@@ -950,6 +1048,9 @@ void swap_productos(ProductoSeleccionado *a, ProductoSeleccionado *b)
     *b = temp;
 }
 
+// --------------------------------------------------------
+// heap_nombres: Ajusta el heap para mantener la propiedad de orden por nombre (min-heap) a partir de un índice.
+// --------------------------------------------------------
 void heap_nombres(Heap *h, int idx)
 {
     int menor = idx;
@@ -974,6 +1075,9 @@ void heap_nombres(Heap *h, int idx)
     }
 }
 
+// --------------------------------------------------------
+// push_heap: Inserta un producto en el heap y mantiene la propiedad de min-heap por nombre.
+// --------------------------------------------------------
 void push_heap(Heap *h, ProductoSeleccionado producto)
 {
     if (h->tamanio == h->capacidad)
@@ -996,6 +1100,9 @@ void push_heap(Heap *h, ProductoSeleccionado producto)
     }
 }
 
+// --------------------------------------------------------
+// pop_heap: Extrae el producto con el menor nombre lexicográfico del heap.
+// --------------------------------------------------------
 ProductoSeleccionado pop_heap(Heap *h)
 {
     if (h->tamanio <= 0)
@@ -1013,6 +1120,9 @@ ProductoSeleccionado pop_heap(Heap *h)
     return raiz;
 }
 
+// --------------------------------------------------------
+// heap_sort_nombres: Ordena un arreglo de ProductoSeleccionado por nombre usando heap sort personalizado.
+// --------------------------------------------------------
 void heap_sort_nombres(ProductoSeleccionado arr[], int n)
 {
     // Crear y llenar el heap
@@ -1033,17 +1143,29 @@ void heap_sort_nombres(ProductoSeleccionado arr[], int n)
     free(h.elementos);
 }
 
-int comparar_nombre_producto(const void *a, const void *b) {
+// --------------------------------------------------------
+// comparar_nombre_producto: Función de comparación para ordenar productos por nombre en qsort (arreglo de Producto).
+// --------------------------------------------------------
+int comparar_nombre_producto(const void *a, const void *b)
+{
     const Producto *p1 = (const Producto *)a;
     const Producto *p2 = (const Producto *)b;
     return strcmp(p1->nombre, p2->nombre);
 }
 
-void ordenar_productos_por_nombre() {
+// --------------------------------------------------------
+// ordenar_productos_por_nombre: Ordena el arreglo global de productos por nombre usando qsort.
+// --------------------------------------------------------
+void ordenar_productos_por_nombre()
+{
     qsort(productosArreglo, MAX_PRODUCTOS, sizeof(Producto), comparar_nombre_producto);
 }
 
-Producto *buscar_producto_binario(Producto productos[], int izquierda, int derecha, const char *nombre) {
+// --------------------------------------------------------
+// buscar_producto_binario: Busca un producto por nombre en un arreglo ordenado usando búsqueda binaria.
+// --------------------------------------------------------
+Producto *buscar_producto_binario(Producto productos[], int izquierda, int derecha, const char *nombre)
+{
     if (izquierda > derecha)
         return NULL;
 
@@ -1058,23 +1180,34 @@ Producto *buscar_producto_binario(Producto productos[], int izquierda, int derec
         return buscar_producto_binario(productos, medio + 1, derecha, nombre);
 }
 
-void buscar_producto_por_nombre() {
+// --------------------------------------------------------
+// buscar_producto_por_nombre: Interfaz de usuario para buscar productos por nombre exacto usando búsqueda binaria.
+// --------------------------------------------------------
+void buscar_producto_por_nombre()
+{
     char nombre[50];
     printf("\n=== BUSQUEDA DE PRODUCTO POR NOMBRE ===\n");
     printf("Ingresa el nombre exacto del producto (ejemplo. Producto 10): ");
     scanf(" %[^\n]", nombre);
 
     Producto *encontrado = buscar_producto_binario(productosArreglo, 0, MAX_PRODUCTOS - 1, nombre);
-    if (encontrado) {
+    if (encontrado)
+    {
         printf("\n Producto encontrado:\n");
         printf("  Nombre: %s\n", encontrado->nombre);
         printf("  Precio: %.2f | Peso: %.2f | Volumen: %.2f\n",
                encontrado->precio, encontrado->peso, encontrado->volumen);
-    } else {
+    }
+    else
+    {
         printf("\n Producto no encontrado.\n");
     }
 }
 
+// --------------------------------------------------------
+// submenu_ordenar_productos: Muestra el submenú de opciones para ordenar productos por nombre, peso o volumen,
+// tanto asignados como no asignados, y ejecuta la ordenación seleccionada.
+// --------------------------------------------------------
 void submenu_ordenar_productos()
 {
     int opcion;
@@ -1219,7 +1352,7 @@ void menuPrincipal()
             break;
         case 5:
             buscar_producto_por_nombre();
-             break;
+            break;
         case 0:
             printf("Saliendo del programa...\n");
             break;
